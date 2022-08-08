@@ -1,0 +1,38 @@
+[core]
+reloadable = true
+order = 0
+
+[package]
+version = "0.0.1-beta"
+category = "Utility"
+feature = false
+app = false
+title = "Embedded Jupyter notebook"
+description = "Jupyter notebook version of Omniverse's script editor"
+authors = ["Toni-SM"]
+repository = "https://github.com/Toni-SM/semu.misc.jupyter_notebook"
+keywords = ["jupyter", "notebook", "ipython"]
+changelog = "docs/CHANGELOG.md"
+readme = "docs/README.md"
+preview_image = "data/preview.png"
+icon = "data/icon.png"
+
+[package.target]
+config = ["release"]
+platform = ["linux-*", "windows-*"]
+python = ["*"]
+
+[dependencies]
+"omni.kit.test" = {}
+
+[[python.module]]
+name = "semu.misc.jupyter_notebook"
+
+[python.pipapi]
+requirements = ["nest_asyncio", "notebook", "jupyter_client"]
+use_online_index = true
+
+[settings]
+exts."semu.misc.jupyter_notebook".host = "0.0.0.0"
+exts."semu.misc.jupyter_notebook".port = 8224
+exts."semu.misc.jupyter_notebook".open_browser = false
