@@ -1,0 +1,12 @@
+{
+    "argv": ["kit/python/bin/python3", "-m", "ipykernel_launcher", "-f", "{connection_file}"],
+    "display_name": "Embedded Omniverse (Python 3)",
+    "language": "python",
+    "interrupt_mode": "message",
+    "metadata": {
+        "debugger": true,
+        "kernel_provisioner": {
+            "provisioner_name": "embedded-omniverse-provisioner"
+        }
+    }
+}
