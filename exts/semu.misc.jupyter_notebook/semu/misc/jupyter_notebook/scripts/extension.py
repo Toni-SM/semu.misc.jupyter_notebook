@@ -25,7 +25,7 @@ class CustomMappingKernelManager(MappingKernelManager):
         self._inner_kwargs = {}
 
     def set_globals(self, value):
-        self._inner_kwargs = {"_globals": value}
+        self._inner_kwargs = {"_globals": value, "_locals": value}
 
     async def start_kernel(self, kernel_id=None, path=None, **kwargs):
         kwargs.update(self._inner_kwargs)
@@ -59,7 +59,6 @@ class Extension(omni.ext.IExt):
 
     async def _inner_app_async(self):
         nest_asyncio.apply()
-        globals_dict = globals().copy()
 
         # get settings
         settings = carb.settings.get_settings()
@@ -89,7 +88,7 @@ class Extension(omni.ext.IExt):
 
         # set the globals to the custom notebook kernel manager
         try:
-            self._app.kernel_manager.set_globals(globals_dict)
+            self._app.kernel_manager.set_globals(globals())
         except Exception as e:
             carb.log_warn(f"Failed to set globals: {e}")
 
