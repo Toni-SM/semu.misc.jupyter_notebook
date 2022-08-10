@@ -1,0 +1,2 @@
+[jupyter_client.kernel_provisioners]
+embedded-omniverse-provisioner = embedded_omniverse_python3.provisioner:Provisioner
