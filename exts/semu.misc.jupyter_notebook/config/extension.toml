@@ -29,10 +29,11 @@ python = ["*"]
 name = "semu.misc.jupyter_notebook"
 
 [python.pipapi]
-requirements = ["nest_asyncio", "notebook", "jupyter_client"]
+requirements = ["nest_asyncio", "jupyterlab", "notebook"]
 use_online_index = true
 
 [settings]
 exts."semu.misc.jupyter_notebook".host = "0.0.0.0"
 exts."semu.misc.jupyter_notebook".port = 8224
 exts."semu.misc.jupyter_notebook".open_browser = false
+exts."semu.misc.jupyter_notebook".classic_notebook_interface = false
