@@ -1,8 +1,13 @@
 import os
 import sys
+import json
 import types
+import socket
 import asyncio
+import traceback
 import threading
+import contextlib
+from io import StringIO
 from prompt_toolkit.eventloop.utils import get_event_loop
 
 import carb
@@ -25,10 +30,10 @@ class MappingKernelManagerLab(_MappingKernelManagerLab):
         self._embedded_kwargs = {"_globals": value, "_locals": value}
 
     async def start_kernel(self, kernel_id=None, path=None, **kwargs):
-        try:
-            kwargs.update(self._embedded_kwargs)
-        except:
-            pass
+        # try:
+        #     kwargs.update(self._embedded_kwargs)
+        # except:
+        #     pass
         return await super().start_kernel(kernel_id=kernel_id, path=path, **kwargs)
 
 
@@ -37,18 +42,19 @@ class MappingKernelManagerNotebook(_MappingKernelManagerNotebook):
         self._embedded_kwargs = {"_globals": value, "_locals": value}
 
     async def start_kernel(self, kernel_id=None, path=None, **kwargs):
-        try:
-            kwargs.update(self._embedded_kwargs)
-        except:
-            pass
+        # try:
+        #     kwargs.update(self._embedded_kwargs)
+        # except:
+        #     pass
         return await super().start_kernel(kernel_id=kernel_id, path=path, **kwargs)
 
 
 class KernelSpecManager(_KernelSpecManager):
-    def find_kernel_specs(self):
-        kernel_dirs = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data", "kernels"))
-        self.kernel_dirs = [kernel_dirs]
-        return {"embedded_omniverse_python3": os.path.join(kernel_dirs, "embedded_omniverse_python3")}
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        kernel_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data", "kernels"))
+        if kernel_dir not in self.kernel_dirs:
+            self.kernel_dirs.append(kernel_dir)
 
 
 class Extension(omni.ext.IExt):
@@ -57,16 +63,23 @@ class Extension(omni.ext.IExt):
         self._settings = carb.settings.get_settings()
 
         self._app = None
+        self._socket = None
         self._extension_path = ext_manager.get_extension_path(ext_id)
 
         sys.path.append(os.path.join(self._extension_path, "data", "provisioners"))
 
         threading.Thread(target=self._launch_app).start()
+        threading.Thread(target=self._launch_socket).start()
 
     def on_shutdown(self):
         if self._extension_path is not None:
             sys.path.remove(os.path.join(self._extension_path, "data", "provisioners"))
             self._extension_path = None
+        # close the socket
+        if self._socket is not None:
+            self._socket.close()
+            self._socket = None
+        # close the juypter app
         if self._app is not None:
             loop = get_event_loop()
             try:
@@ -76,22 +89,66 @@ class Extension(omni.ext.IExt):
             self._app = None
             print("Stopped Jupyter server")
 
+    def _launch_socket(self):
+        socket_port = self._settings.get("/exts/semu.misc.jupyter_notebook/socket_port")
+
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.bind(("127.0.0.1", socket_port))
+        self._socket.listen()
+
+        async def _exec_code(conn, _code):
+            _stdout = StringIO()
+            try:
+                with contextlib.redirect_stdout(_stdout):
+                    exec(code, globals(), globals())
+                reply = {"status": "ok"}
+            except Exception as e:
+                reply = {"status": "error", 
+                        "traceback": [traceback.format_exc()],
+                        "ename": str(type(e).__name__),
+                        "evalue": str(e)}
+            asyncio.ensure_future(omni.kit.app.get_app().next_update_async())
+            output = _stdout.getvalue()
+            reply["output"] = output
+            conn.sendall(json.dumps(reply).encode("utf-8"))
+
+        while self._socket is not None:
+            conn, addr = self._socket.accept()
+            with conn:
+                while True:
+                    data = conn.recv(2048)
+                    if not data:
+                        break
+                    code = data.decode("utf-8")
+                    asyncio.run(_exec_code(conn, code))
+
+        if self._socket is not None:
+            self._socket.close()
+            self._socket = None
+
     def _launch_app(self):
         asyncio.run(self._async_jupyter())
 
     async def _async_jupyter(self):
         # get settings
-        ip = self._settings.get("/exts/semu.misc.jupyter_notebook/host")
-        port = self._settings.get("/exts/semu.misc.jupyter_notebook/port")
-        open_browser = self._settings.get("/exts/semu.misc.jupyter_notebook/open_browser")
+        token = self._settings.get("/exts/semu.misc.jupyter_notebook/token")
+        ip = self._settings.get("/exts/semu.misc.jupyter_notebook/notebook_ip")
+        port = self._settings.get("/exts/semu.misc.jupyter_notebook/notebook_port")
+        notebook_dir = self._settings.get("/exts/semu.misc.jupyter_notebook/notebook_dir")
+        command_line_options = self._settings.get("/exts/semu.misc.jupyter_notebook/command_line_options")
         classic_notebook_interface = self._settings.get("/exts/semu.misc.jupyter_notebook/classic_notebook_interface")
 
         argv = []
-        argv.append("--allow-root")
-        if not open_browser:
-            argv.append("--no-browser")
-        argv.append("--notebook-dir={}".format(os.path.join(self._extension_path, "data", "notebooks")))
-
+        if command_line_options:
+            argv = command_line_options.split(" ")
+        if notebook_dir:
+            argv.append("--notebook-dir={}".format(notebook_dir))
+        else:
+            argv.append("--notebook-dir={}".format(os.path.join(self._extension_path, "data", "notebooks")))
+        if classic_notebook_interface:
+            argv.append("--NotebookApp.token='{}'".format(token))
+        else:
+            argv.append("--ServerApp.token='{}'".format(token))
         carb.log_info("argv: {}".format(argv))
 
         # jupyter notebook
