@@ -33,7 +33,11 @@ requirements = ["nest_asyncio", "jupyterlab", "notebook"]
 use_online_index = true
 
 [settings]
-exts."semu.misc.jupyter_notebook".host = "0.0.0.0"
-exts."semu.misc.jupyter_notebook".port = 8224
-exts."semu.misc.jupyter_notebook".open_browser = false
+exts."semu.misc.jupyter_notebook".socket_port = 8224
 exts."semu.misc.jupyter_notebook".classic_notebook_interface = false
+exts."semu.misc.jupyter_notebook".notebook_ip = "0.0.0.0"
+exts."semu.misc.jupyter_notebook".notebook_port = 8225
+exts."semu.misc.jupyter_notebook".token = ""
+exts."semu.misc.jupyter_notebook".notebook_dir = ""
+# command_line_options: other than '--ip', '--port', '--token', '--notebook-dir'
+exts."semu.misc.jupyter_notebook".command_line_options = "--allow-root --no-browser"
