@@ -1,0 +1,12 @@
+{
+    "argv": ["AUTOMATICALLY_REPLACED", "AUTOMATICALLY_REPLACED", "-f", "{connection_file}"],
+    "display_name": "Embedded Omniverse (Python 3) [threaded]",
+    "language": "python",
+    "interrupt_mode": "message",
+    "metadata": {
+        "debugger": true,
+        "kernel_provisioner": {
+            "provisioner_name": "embedded-omniverse-provisioner-threaded"
+        }
+    }
+}
