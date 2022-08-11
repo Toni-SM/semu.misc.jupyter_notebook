@@ -24,6 +24,8 @@ python = ["*"]
 
 [dependencies]
 "omni.kit.test" = {}
+"omni.kit.uiapp" = {}
+"omni.kit.notification_manager" = {}
 
 [[python.module]]
 name = "semu.misc.jupyter_notebook"

@@ -50,6 +50,10 @@ class KernelSpecManager(_KernelSpecManager):
 
 
 class Extension(omni.ext.IExt):
+    
+    WINDOW_NAME = "Embedded Jupyter Notebook"
+    MENU_PATH = f"Window/{WINDOW_NAME}"
+
     def on_startup(self, ext_id):
         ext_manager = omni.kit.app.get_app().get_extension_manager()
         self._settings = carb.settings.get_settings()
@@ -58,6 +62,11 @@ class Extension(omni.ext.IExt):
         self._socket = None
         self._loop = get_event_loop()
         self._extension_path = ext_manager.get_extension_path(ext_id)
+
+        # menu item
+        editor_menu = omni.kit.ui.get_editor_menu()
+        if editor_menu:
+            self._menu = editor_menu.add_item(Extension.MENU_PATH, self._show_notebook, toggle=True, value=False)
 
         sys.path.append(os.path.join(self._extension_path, "data", "provisioners"))
 
@@ -81,6 +90,17 @@ class Extension(omni.ext.IExt):
                 print(f"Error stopping app: {e}")
             self._app = None
             print("Stopped Jupyter server")
+
+    def _show_notebook(self, menu, value):
+        if self._app is not None:
+            notification = "Jupyter Notebook is running at:\n\n  - " + self._app.display_url.replace(" or ", "  - ")
+            ok_button = omni.kit.notification_manager.NotificationButtonInfo("OK", on_complete=None)
+            omni.kit.notification_manager.post_notification(notification, 
+                                                            hide_after_timeout=False, 
+                                                            duration=0, 
+                                                            status=omni.kit.notification_manager.NotificationStatus.INFO, 
+                                                            button_infos=[ok_button])
+            print(notification)
 
     def _launch_socket(self):
         socket_port = self._settings.get("/exts/semu.misc.jupyter_notebook/socket_port")
