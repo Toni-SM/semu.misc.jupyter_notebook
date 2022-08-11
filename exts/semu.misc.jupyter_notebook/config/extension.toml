@@ -3,15 +3,15 @@ reloadable = true
 order = 0
 
 [package]
-version = "0.0.1-beta"
+version = "0.0.2-beta"
 category = "Utility"
 feature = false
 app = false
-title = "Embedded Jupyter notebook"
-description = "Jupyter notebook version of Omniverse's script editor"
+title = "Embedded Jupyter Notebook"
+description = "Jupyter Notebook version of Omniverse's script editor"
 authors = ["Toni-SM"]
 repository = "https://github.com/Toni-SM/semu.misc.jupyter_notebook"
-keywords = ["jupyter", "notebook", "ipython"]
+keywords = ["jupyter", "notebook", "ipython", "editor"]
 changelog = "docs/CHANGELOG.md"
 readme = "docs/README.md"
 preview_image = "data/preview.png"
@@ -35,11 +35,14 @@ requirements = ["nest_asyncio", "jupyterlab", "notebook"]
 use_online_index = true
 
 [settings]
+# extension settings
 exts."semu.misc.jupyter_notebook".socket_port = 8224
+exts."semu.misc.jupyter_notebook".run_in_external_process = true
 exts."semu.misc.jupyter_notebook".classic_notebook_interface = false
+# jupyter notebook settings
 exts."semu.misc.jupyter_notebook".notebook_ip = "0.0.0.0"
 exts."semu.misc.jupyter_notebook".notebook_port = 8225
 exts."semu.misc.jupyter_notebook".token = ""
 exts."semu.misc.jupyter_notebook".notebook_dir = ""
-# command_line_options: other than '--ip', '--port', '--token', '--notebook-dir'
+# jupyter notebook's command line options other than: '--ip', '--port', '--token', '--notebook-dir'
 exts."semu.misc.jupyter_notebook".command_line_options = "--allow-root --no-browser"
