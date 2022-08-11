@@ -30,10 +30,6 @@ class MappingKernelManagerLab(_MappingKernelManagerLab):
         self._embedded_kwargs = {"_globals": value, "_locals": value}
 
     async def start_kernel(self, kernel_id=None, path=None, **kwargs):
-        # try:
-        #     kwargs.update(self._embedded_kwargs)
-        # except:
-        #     pass
         return await super().start_kernel(kernel_id=kernel_id, path=path, **kwargs)
 
 
@@ -42,10 +38,6 @@ class MappingKernelManagerNotebook(_MappingKernelManagerNotebook):
         self._embedded_kwargs = {"_globals": value, "_locals": value}
 
     async def start_kernel(self, kernel_id=None, path=None, **kwargs):
-        # try:
-        #     kwargs.update(self._embedded_kwargs)
-        # except:
-        #     pass
         return await super().start_kernel(kernel_id=kernel_id, path=path, **kwargs)
 
 
@@ -64,6 +56,7 @@ class Extension(omni.ext.IExt):
 
         self._app = None
         self._socket = None
+        self._loop = get_event_loop()
         self._extension_path = ext_manager.get_extension_path(ext_id)
 
         sys.path.append(os.path.join(self._extension_path, "data", "provisioners"))
@@ -96,21 +89,24 @@ class Extension(omni.ext.IExt):
         self._socket.bind(("127.0.0.1", socket_port))
         self._socket.listen()
 
-        async def _exec_code(conn, _code):
+        async def _exec_code(code):
             _stdout = StringIO()
             try:
                 with contextlib.redirect_stdout(_stdout):
                     exec(code, globals(), globals())
                 reply = {"status": "ok"}
             except Exception as e:
+                _traceback = traceback.format_exc()
+                _i = _traceback.find('\n  File "<string>"')
+                if _i != -1:
+                    _traceback = _traceback[_i + 20:]
                 reply = {"status": "error", 
-                        "traceback": [traceback.format_exc()],
+                        "traceback": [_traceback],
                         "ename": str(type(e).__name__),
                         "evalue": str(e)}
-            asyncio.ensure_future(omni.kit.app.get_app().next_update_async())
             output = _stdout.getvalue()
             reply["output"] = output
-            conn.sendall(json.dumps(reply).encode("utf-8"))
+            return reply
 
         while self._socket is not None:
             conn, addr = self._socket.accept()
@@ -120,7 +116,8 @@ class Extension(omni.ext.IExt):
                     if not data:
                         break
                     code = data.decode("utf-8")
-                    asyncio.run(_exec_code(conn, code))
+                    reply = self._loop.run_until_complete(_exec_code(code))
+                    conn.sendall(json.dumps(reply).encode("utf-8"))
 
         if self._socket is not None:
             self._socket.close()
