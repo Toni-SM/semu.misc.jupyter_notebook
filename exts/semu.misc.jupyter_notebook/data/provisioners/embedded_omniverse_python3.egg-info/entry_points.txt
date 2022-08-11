@@ -1,2 +1,3 @@
 [jupyter_client.kernel_provisioners]
-embedded-omniverse-provisioner = embedded_omniverse_python3.provisioner:Provisioner
+embedded-omniverse-provisioner-socket = embedded_omniverse_python3.provisioner_socket:Provisioner
+embedded-omniverse-provisioner-threaded = embedded_omniverse_python3.provisioner_threaded:Provisioner
