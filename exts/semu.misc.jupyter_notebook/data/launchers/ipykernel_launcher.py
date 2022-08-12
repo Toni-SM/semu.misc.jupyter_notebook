@@ -37,12 +37,14 @@ async def execute_request(self, stream, ident, parent):
         try:
             s.connect(("127.0.0.1", SOCKET_PORT))
             s.sendall(str(code).encode("utf-8"))
-            reply_content = json.loads(s.recv(2048).decode("utf-8"))
+            data = s.recv(2048)  # TODO: check if this is enough
+            reply_content = json.loads(data.decode("utf-8"))
         except Exception as e:
             print(e)
             return
     
-    print(reply_content["output"])
+    if reply_content["output"]:
+        print(reply_content["output"])
     reply_content.pop("output", None)
 
     reply_content.update({"execution_count": self.execution_count,
