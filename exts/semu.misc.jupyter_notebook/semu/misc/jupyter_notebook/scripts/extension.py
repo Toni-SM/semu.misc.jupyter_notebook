@@ -108,9 +108,10 @@ class Extension(omni.ext.IExt):
         if editor_menu:
             self._menu = editor_menu.add_item(Extension.MENU_PATH, self._show_notification, toggle=False, value=False)
         
-        # # code execution thread
-        # threading.Thread(target=self._launch_socket).start()
-
+        # create socket
+        self._socket = self._create_socket()
+        get_event_loop().add_reader(self._socket, self._on_accept_connection)
+        
         # run jupyter notebook in a separate process
         if self._run_in_external_process:
             self._launch_jupyter_process()
@@ -118,110 +119,15 @@ class Extension(omni.ext.IExt):
         else:
             threading.Thread(target=self._launch_jupyter_thread).start()
 
-        self._listen_socket = self._create_socket()
-        get_event_loop().add_reader(self._listen_socket, self._accept)
-
-    def _get_globals(self):
-        return self._globals
-
-    def _get_locals(self):
-        return self._locals
-
-    def _create_socket(self) -> socket.socket:
-        host = "127.0.0.1"
-        port = self._settings.get("/exts/semu.misc.jupyter_notebook/socket_port")
-
-        # write the socket port to socket.txt file
-        socket_txt = os.path.join(self._extension_path, "data", "launchers", "socket.txt")
-        carb.log_info("Internal socket server is running at port {}".format(port))
-        with open(socket_txt, "w") as f:
-            f.write(str(port))
-
-        _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        _socket.bind((host, port))
-        _socket.listen(4)
-        return _socket
-
-    def _accept(self) -> None:
-        if self._listen_socket is None:
-            return
-        conn, addr = self._listen_socket.accept()
-
-        # run application for this connection
-        async def run():
-            def handle_incoming_data() -> None:
-                data = conn.recv(1024)
-                if not data:
-                    get_event_loop().remove_reader(conn)
-                    conn.close()
-                asyncio.run_coroutine_threadsafe(self._exec_code_async(data.decode("utf-8"), conn), get_event_loop())
-
-            loop = get_event_loop()
-            loop.add_reader(conn, handle_incoming_data)
-
-        task = get_event_loop().create_task(run())
-
-    async def _exec_code_async(self, line: str, conn) -> dict:
-        """Execute code in the Omniverse scope
-        
-        :param code: code to execute
-        :type code: str
-        :return: reply dictionary as ipython notebook expects it
-        :rtype: dict
-        """
-        _stdout = StringIO()
-        try:
-            with contextlib.redirect_stdout(_stdout):
-                status = True
-                try:
-                    code = _compile_with_flags(line, "eval")
-                except SyntaxError:
-                    pass
-                else:
-                    result = eval(code, self._get_globals(), self._get_locals())
-                    if _has_coroutine_flag(code):
-                        result = await result
-                    status = False
-                if status:
-                    code = _compile_with_flags(line, "exec")
-                    result = eval(code, self._get_globals(), self._get_locals())
-
-                    if _has_coroutine_flag(code):
-                        result = await result
-            reply = {"status": "ok"}
-        except Exception as e:
-            _traceback = traceback.format_exc()
-            _i = _traceback.find('\n  File "<string>"')
-            if _i != -1:
-                _traceback = _traceback[_i + 20:]
-            reply = {"status": "error", 
-                    "traceback": [_traceback],
-                    "ename": str(type(e).__name__),
-                    "evalue": str(e)}
-        output = _stdout.getvalue()
-        reply["output"] = output
-
-        conn.send(json.dumps(reply).encode("utf-8"))
-        loop = get_event_loop()
-        loop.remove_reader(conn)
-        conn.close()
-        # return reply
-
     def on_shutdown(self):
         # clean extension paths from sys.path
         if self._extension_path is not None:
             sys.path.remove(os.path.join(self._extension_path, "data", "provisioners"))
             self._extension_path = None
         # close the socket
-        if self._listen_socket:
-            get_event_loop().remove_reader(self._listen_socket)
-            self._listen_socket.close()
-        # close the socket
-        self._stop_socket = True
-        if self._socket is not None:
+        if self._socket:
+            get_event_loop().remove_reader(self._socket)
             self._socket.close()
-            self._socket = None
         # close the jupyter notebook (external process)
         if self._run_in_external_process:
             if self._process is not None:
@@ -245,6 +151,8 @@ class Extension(omni.ext.IExt):
                 except Exception as e:
                     carb.log_error(str(e))
                 self._app = None
+
+    # extension ui methods
 
     def _show_notification(self, *args, **kwargs) -> None:
         """Show a Jupyter Notebook URL in the notification area
@@ -277,86 +185,113 @@ class Extension(omni.ext.IExt):
         print(notification)
         carb.log_info(notification)
 
-    def _launch_socket(self) -> None:
-        """Launch the internal socket server for executing code using the Omniverse scope
+    # internal socket methods
+
+    def _create_socket(self) -> socket.socket:
+        """Create a socket to listen for incoming connections from the IPython kernel
+
+        :return: The socket
+        :rtype: socket.socket
         """
-        async def _eval_async(line):
-            try:
-                code = _compile_with_flags(line, "eval")
-            except SyntaxError:
-                pass
-            else:
-                result = eval(code, globals(), locals())
-                if _has_coroutine_flag(code):
-                    result = await result
-                return result
-            
-            code = _compile_with_flags(line, "exec")
-            result = eval(code, globals(), locals())
-
-            if _has_coroutine_flag(code):
-                result = await result
-            return None
-
-        async def _exec_code(line: str) -> dict:
-            """Execute code in the Omniverse scope
-            
-            :param code: code to execute
-            :type code: str
-            :return: reply dictionary as ipython notebook expects it
-            :rtype: dict
-            """
-            _stdout = StringIO()
-            try:
-                print(line)
-                # with contextlib.redirect_stdout(_stdout):
-                result = await _eval_async(line)
-                print(result)
-                    # exec(code, globals(), globals())
-                reply = {"status": "ok"}
-            except Exception as e:
-                _traceback = traceback.format_exc()
-                _i = _traceback.find('\n  File "<string>"')
-                if _i != -1:
-                    _traceback = _traceback[_i + 20:]
-                reply = {"status": "error", 
-                        "traceback": [_traceback],
-                        "ename": str(type(e).__name__),
-                        "evalue": str(e)}
-            output = _stdout.getvalue()
-            reply["output"] = output
-            return reply
-        
         socket_port = self._settings.get("/exts/semu.misc.jupyter_notebook/socket_port")
         socket_txt = os.path.join(self._extension_path, "data", "launchers", "socket.txt")
 
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            self._socket.bind(("127.0.0.1", socket_port))
-            self._socket.listen()
-        except OSError as e:
-            carb.log_error("Internal socket server at port {} failed to start: {}".format(socket_port, str(e)))
-            self._socket.close()
-            self._socket = None
-            # delete socket.txt file
-            if os.path.exists(socket_txt):
-                os.remove(socket_txt)
-            return
-        
+        # delete socket.txt file
+        if os.path.exists(socket_txt):
+            os.remove(socket_txt)
+
+        # create socket
+        _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        _socket.bind(("127.0.0.1", socket_port))
+        _socket.listen(5)
+
         # write the socket port to socket.txt file
         carb.log_info("Internal socket server is running at port {}".format(socket_port))
         with open(socket_txt, "w") as f:
             f.write(str(socket_port))
 
-        # start the processing loop
-        while not self._stop_socket:
-            conn, _ = self._socket.accept()
-            with conn:
-                data = conn.recv(2048)
-                code = data.decode("utf-8")
-                reply = self._loop.run_until_complete(_exec_code(code))
-                conn.sendall(json.dumps(reply).encode("utf-8"))
+        return _socket
+
+    def _on_accept_connection(self) -> None:
+        """Accept a connection from the IPython kernel
+        """
+        async def run() -> None:
+            """Coroutine for handling the incoming connection
+            """
+            def _handle_incoming_data() -> None:
+                """Handle incoming data from the IPython kernel
+                """
+                data = conn.recv(2048)  # TODO: make sure this is enough
+                if not data:
+                    get_event_loop().remove_reader(conn)
+                    conn.close()
+                asyncio.run_coroutine_threadsafe(self._exec_code_async(data.decode("utf-8"), conn), get_event_loop())
+            
+            get_event_loop().add_reader(conn, _handle_incoming_data)
+
+        if self._socket is None:
+            return
+        conn, _ = self._socket.accept()
+        task = get_event_loop().create_task(run())
+
+    async def _exec_code_async(self, statement: str, conn: socket.socket) -> None:
+        """Execute the statement in the Omniverse scope and send the result to the IPython kernel
+        
+        :param statement: statement to execute
+        :type statement: str
+        :param conn: connection to the IPython kernel
+        :type conn: socket.socket
+
+        :return: reply dictionary as ipython notebook expects it
+        :rtype: dict
+        """
+        _stdout = StringIO()
+        try:
+            with contextlib.redirect_stdout(_stdout):
+                should_exec_code = True
+                # try 'eval' first
+                try:
+                    code = _compile_with_flags(statement, "eval")
+                except SyntaxError:
+                    pass
+                else:
+                    result = eval(code, self._globals, self._locals)
+                    should_exec_code = False
+                # if 'eval' fails, try 'exec'
+                if should_exec_code:
+                    code = _compile_with_flags(statement, "exec")
+                    result = eval(code, self._globals, self._locals)
+                # await the result if it is a coroutine
+                if _has_coroutine_flag(code):
+                    result = await result
+        except Exception as e:
+            # clean traceback
+            _traceback = traceback.format_exc()
+            _i = _traceback.find('\n  File "<string>"')
+            if _i != -1:
+                _traceback = _traceback[_i + 20:]
+            _i = _traceback.find('\n  File "<stdin>"')
+            if _i != -1:
+                _traceback = _traceback[_i + 19:]
+            _traceback = _traceback.replace(", in <module>\n", "\n")
+            # build reply dictionary
+            reply = {"status": "error", 
+                    "traceback": [_traceback],
+                    "ename": str(type(e).__name__),
+                    "evalue": str(e)}
+        else:
+            reply = {"status": "ok"}
+
+        # add output to reply dictionary for printing
+        reply["output"] = _stdout.getvalue()
+
+        # send the reply to the IPython kernel
+        conn.send(json.dumps(reply).encode("utf-8"))
+        get_event_loop().remove_reader(conn)
+        conn.close()
+
+    # launch Jupyter Notebook methods
 
     def _launch_jupyter_process(self) -> None:
         """Launch the Jupyter notebook in a separate process
