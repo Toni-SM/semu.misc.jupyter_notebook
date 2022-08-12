@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import types
+import struct
 import socket
 
 from ipykernel.jsonutil import json_clean
@@ -36,7 +37,7 @@ async def execute_request(self, stream, ident, parent):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect(("127.0.0.1", SOCKET_PORT))
-            s.sendall(str(code).encode("utf-8"))
+            s.sendall(struct.pack(">I", len(code)) + code.encode("utf-8"))
             data = s.recv(2048)  # TODO: check if this is enough
             reply_content = json.loads(data.decode("utf-8"))
         except Exception as e:

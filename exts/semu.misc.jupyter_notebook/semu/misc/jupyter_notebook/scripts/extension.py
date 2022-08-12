@@ -4,6 +4,7 @@ import os
 import sys
 import json
 import types
+import struct
 import socket
 import asyncio
 import traceback
@@ -217,10 +218,25 @@ class Extension(omni.ext.IExt):
         async def run() -> None:
             """Coroutine for handling the incoming connection
             """
+            def _recvall(n):
+                data = bytearray()
+                while len(data) < n:
+                    packet = conn.recv(n - len(data))
+                    if not packet:
+                        return None
+                    data.extend(packet)
+                return data
+
+            def _recv_msg():
+                raw_msglen = _recvall(4)
+                if not raw_msglen:
+                    return None
+                return _recvall(struct.unpack('>I', raw_msglen)[0])
+            
             def _handle_incoming_data() -> None:
                 """Handle incoming data from the IPython kernel
                 """
-                data = conn.recv(2048)  # TODO: make sure this is enough
+                data = _recv_msg()
                 if not data:
                     get_event_loop().remove_reader(conn)
                     conn.close()
