@@ -12,6 +12,11 @@ import contextlib
 from io import StringIO
 from subprocess import Popen
 from prompt_toolkit.eventloop.utils import get_event_loop
+from dis import COMPILER_FLAG_NAMES
+try:
+    from ast import PyCF_ALLOW_TOP_LEVEL_AWAIT
+except ImportError:
+    PyCF_ALLOW_TOP_LEVEL_AWAIT = 0
 
 import carb
 import omni.ext
@@ -20,45 +25,38 @@ import nest_asyncio
 from jupyter_client.kernelspec import KernelSpecManager as _KernelSpecManager
 
 
-from dis import COMPILER_FLAG_NAMES
-try:
-    from ast import PyCF_ALLOW_TOP_LEVEL_AWAIT  # type: ignore
-except ImportError:
-    PyCF_ALLOW_TOP_LEVEL_AWAIT = 0
-
-
-def _get_coroutine_flag():
+def _get_coroutine_flag() -> int:
+    """Get the coroutine flag for the current Python version
+    """
     for k, v in COMPILER_FLAG_NAMES.items():
         if v == "COROUTINE":
             return k
-    return None
+    return -1
 
 COROUTINE_FLAG = _get_coroutine_flag()
 
-def _get_compiler_flags():
-        flags = 0
-        for value in globals().values():
-            try:
-                if isinstance(value, __future__._Feature):
-                    f = value.compiler_flag
-                    flags |= f
-            except BaseException:
-                pass
-        return flags
-
-def _has_coroutine_flag(code):
-    if COROUTINE_FLAG is None:
+def _has_coroutine_flag(code) -> bool:
+    """Check if the code has the coroutine flag set
+    """
+    if COROUTINE_FLAG == -1:
         return False
     return bool(code.co_flags & COROUTINE_FLAG)
 
-def _compile_with_flags(code, mode):
-    return compile(code,
-                   "<stdin>",
-                   mode,
-                   flags= _get_compiler_flags() | PyCF_ALLOW_TOP_LEVEL_AWAIT,
-                   dont_inherit=True)
+def _get_compiler_flags() -> int:
+    """Get the compiler flags for the current Python version
+    """
+    flags = 0
+    for value in globals().values():
+        try:
+            if isinstance(value, __future__._Feature):
+                f = value.compiler_flag
+                flags |= f
+        except BaseException:
+            pass
+    flags = flags | PyCF_ALLOW_TOP_LEVEL_AWAIT
+    return flags
 
-def _init_signal(self):
+def _init_signal(self) -> None:
     """Dummy method to initialize the notebook app outside of the main thread
     """
     pass
@@ -252,7 +250,7 @@ class Extension(omni.ext.IExt):
                 should_exec_code = True
                 # try 'eval' first
                 try:
-                    code = _compile_with_flags(statement, "eval")
+                    code = compile(statement, "<string>", "eval", flags= _get_compiler_flags(), dont_inherit=True)
                 except SyntaxError:
                     pass
                 else:
@@ -260,7 +258,7 @@ class Extension(omni.ext.IExt):
                     should_exec_code = False
                 # if 'eval' fails, try 'exec'
                 if should_exec_code:
-                    code = _compile_with_flags(statement, "exec")
+                    code = compile(statement, "<string>", "exec", flags= _get_compiler_flags(), dont_inherit=True)
                     result = eval(code, self._globals, self._locals)
                 # await the result if it is a coroutine
                 if _has_coroutine_flag(code):
@@ -271,9 +269,6 @@ class Extension(omni.ext.IExt):
             _i = _traceback.find('\n  File "<string>"')
             if _i != -1:
                 _traceback = _traceback[_i + 20:]
-            _i = _traceback.find('\n  File "<stdin>"')
-            if _i != -1:
-                _traceback = _traceback[_i + 19:]
             _traceback = _traceback.replace(", in <module>\n", "\n")
             # build reply dictionary
             reply = {"status": "error", 
