@@ -12,7 +12,6 @@ import threading
 import contextlib
 from io import StringIO
 from subprocess import Popen
-from prompt_toolkit.eventloop.utils import get_event_loop
 from dis import COMPILER_FLAG_NAMES
 try:
     from ast import PyCF_ALLOW_TOP_LEVEL_AWAIT
@@ -57,6 +56,17 @@ def _get_compiler_flags() -> int:
     flags = flags | PyCF_ALLOW_TOP_LEVEL_AWAIT
     return flags
 
+def _get_event_loop() -> asyncio.AbstractEventLoop:
+    """Backward compatible function for getting the event loop
+    """
+    try:
+        if sys.version_info >= (3, 7):
+            return asyncio.get_running_loop()
+        else:
+            return asyncio.get_event_loop()
+    except RuntimeError:
+        return asyncio.get_event_loop_policy().get_event_loop()
+
 def _init_signal(self) -> None:
     """Dummy method to initialize the notebook app outside of the main thread
     """
@@ -88,7 +98,6 @@ class Extension(omni.ext.IExt):
         self._process = None
         self._stop_socket = False
 
-        self._loop = get_event_loop()
         self._settings = carb.settings.get_settings()
         self._extension_path = omni.kit.app.get_app().get_extension_manager().get_extension_path(ext_id)
         sys.path.append(os.path.join(self._extension_path, "data", "provisioners"))
@@ -109,7 +118,7 @@ class Extension(omni.ext.IExt):
         
         # create socket
         self._socket = self._create_socket()
-        get_event_loop().add_reader(self._socket, self._on_accept_connection)
+        _get_event_loop().add_reader(self._socket, self._on_accept_connection)
         
         # run jupyter notebook in a separate process
         if self._run_in_external_process:
@@ -125,7 +134,7 @@ class Extension(omni.ext.IExt):
             self._extension_path = None
         # close the socket
         if self._socket:
-            get_event_loop().remove_reader(self._socket)
+            _get_event_loop().remove_reader(self._socket)
             self._socket.close()
         # close the jupyter notebook (external process)
         if self._run_in_external_process:
@@ -146,7 +155,7 @@ class Extension(omni.ext.IExt):
         else:
             if self._app is not None:
                 try:
-                    get_event_loop().run_until_complete(self._app._stop())
+                    _get_event_loop().run_until_complete(self._app._stop())
                 except Exception as e:
                     carb.log_error(str(e))
                 self._app = None
@@ -238,16 +247,16 @@ class Extension(omni.ext.IExt):
                 """
                 data = _recv_msg()
                 if not data:
-                    get_event_loop().remove_reader(conn)
+                    _get_event_loop().remove_reader(conn)
                     conn.close()
-                asyncio.run_coroutine_threadsafe(self._exec_code_async(data.decode("utf-8"), conn), get_event_loop())
+                asyncio.run_coroutine_threadsafe(self._exec_code_async(data.decode("utf-8"), conn), _get_event_loop())
             
-            get_event_loop().add_reader(conn, _handle_incoming_data)
+            _get_event_loop().add_reader(conn, _handle_incoming_data)
 
         if self._socket is None:
             return
         conn, _ = self._socket.accept()
-        task = get_event_loop().create_task(run())
+        task = _get_event_loop().create_task(run())
 
     async def _exec_code_async(self, statement: str, conn: socket.socket) -> None:
         """Execute the statement in the Omniverse scope and send the result to the IPython kernel
@@ -302,7 +311,7 @@ class Extension(omni.ext.IExt):
         conn.sendall(struct.pack(">I", len(reply)) + reply.encode("utf-8"))
 
         # close the connection
-        get_event_loop().remove_reader(conn)
+        _get_event_loop().remove_reader(conn)
         conn.close()
 
     # launch Jupyter Notebook methods
