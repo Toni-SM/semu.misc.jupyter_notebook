@@ -27,6 +27,21 @@ from ipykernel.kernelapp import IPKernelApp as _IPKernelApp
 
 
 async def execute_request(self, stream, ident, parent):
+    def _recvall(conn, n):
+        data = bytearray()
+        while len(data) < n:
+            packet = conn.recv(n - len(data))
+            if not packet:
+                return None
+            data.extend(packet)
+        return data
+
+    def _recv_msg(conn):
+        raw_msglen = _recvall(conn, 4)
+        if not raw_msglen:
+            return None
+        return _recvall(conn, struct.unpack('>I', raw_msglen)[0])
+
     try:
         content = parent["content"]
         code = content["code"]
@@ -49,8 +64,10 @@ async def execute_request(self, stream, ident, parent):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect(("127.0.0.1", SOCKET_PORT))
+            # send code
             s.sendall(struct.pack(">I", len(code)) + code.encode("utf-8"))
-            data = s.recv(2048)  # TODO: check if this is enough
+            # receive reply
+            data = _recv_msg(s)
             reply_content = json.loads(data.decode("utf-8"))
         except Exception as e:
             print(e)

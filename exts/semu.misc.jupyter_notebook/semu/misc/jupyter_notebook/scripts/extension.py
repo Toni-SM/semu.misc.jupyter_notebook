@@ -298,7 +298,10 @@ class Extension(omni.ext.IExt):
         reply["output"] = _stdout.getvalue()
 
         # send the reply to the IPython kernel
-        conn.send(json.dumps(reply).encode("utf-8"))
+        reply = json.dumps(reply)
+        conn.sendall(struct.pack(">I", len(reply)) + reply.encode("utf-8"))
+
+        # close the connection
         get_event_loop().remove_reader(conn)
         conn.close()
 
