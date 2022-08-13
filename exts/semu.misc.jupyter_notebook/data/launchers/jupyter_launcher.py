@@ -4,15 +4,18 @@ import os
 import sys
 
 
+PACKAGES_PATH = []
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # add packages to sys.path
 with open(os.path.join(SCRIPT_DIR, "packages.txt"), "r") as f:
     for p in f.readlines():
         p = p.strip()
-        print("Adding package to sys.path: {}".format(p))
-        if p and p not in sys.path:
-            sys.path.append(p)
+        if p:
+            PACKAGES_PATH.append(p)
+            if p not in sys.path:
+                print("Adding package to sys.path: {}".format(p))
+                sys.path.append(p)
 
 # add provisioners to sys.path
 sys.path.append(os.path.abspath(os.path.join(SCRIPT_DIR, "..", "provisioners")))
@@ -115,8 +118,17 @@ if __name__ == "__main__":
     else:
         token = "--ServerApp.token={}".format(token)
 
+    # assets path
+    app_dir = []
+    for p in PACKAGES_PATH:
+        print("Checking package to app_dir: {}".format(p))
+        if os.path.exists(os.path.join(p, "share", "jupyter", "lab")):
+            app_dir.append("--app-dir={}".format(os.path.join(p, "share", "jupyter", "lab")))
+            break
+    print("app_dir: {}".format(app_dir))
+
     # clean up the argv
-    argv = [token] + [notebook_dir] + argv[5].split(" ")
+    argv = app_dir + [token] + [notebook_dir] + argv[5].split(" ")
 
     # run the launcher
     print("Starting Jupyter {} at {}:{}".format("Notebook" if classic_notebook_interface else "Lab", ip, port))
