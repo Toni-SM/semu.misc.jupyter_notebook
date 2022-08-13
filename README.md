@@ -65,6 +65,7 @@ Disabling the extension shutdowns the Jupyter Notebook server and the openened k
 
 The extension can be configured by editing the [config.toml](exts/semu.misc.jupyter_notebook/config/extension.toml) file under `[settings]` section. The following parameters are available:
 
+<br>
 
 **Extension settings**
 
@@ -90,10 +91,12 @@ The extension can be configured by editing the [config.toml](exts/semu.misc.jupy
     <tr>
       <td>classic_notebook_interface</td>
       <td>false</td>
-      <td>Whether the Jupyter Notebook server will use the [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) interface (default interface) or the classic [Jupyter Notebook](https://jupyter-notebook.readthedocs.io/en/latest/) interface</td>
+      <td>Whether the Jupyter Notebook server will use the JupyterLab interface (default interface) or the classic Jupyter Notebook interface</td>
     </tr>
   </tbody>
 </table>
+
+<br>
 
 **Jupyter Notebook server settings**
 
@@ -139,9 +142,12 @@ The extension can be configured by editing the [config.toml](exts/semu.misc.jupy
 <a name="implementation"></a>
 ### Implementation details
 
-Both the Jupyter Notebook server and the IPython kernels are designed to be launched as independent processes (or subprocesses). Due to this specification, there are 2 versions of Omnivrese integration implemented in this extension (configurable with the parameter `run_in_external_process`). Each version has its own kernel and notebook server implementation
+Both the Jupyter Notebook server and the IPython kernels are designed to be launched as independent processes (or subprocesses). Due to this specification, there are implemented 2 deployments, in this extension, to support the Omniverse integration (configurable with the parameter `run_in_external_process`). Each deployment has its own kernel and notebook server implementation
+
+<br>
 
 1. The Jupyter Notebook server and the IPython kernels are launched in separate (sub)processes (**default and recommended**)
+
 2. The Jupyter Notebook server and the IPython kernels are launched threaded in the same process as the Omniverse application
 
 <br>
@@ -155,11 +161,6 @@ Both the Jupyter Notebook server and the IPython kernels are designed to be laun
   </thead>
   <tbody>
     <tr>
-      <td>Kernel</td>
-      <td>embedded_omniverse_python3_socket</td>
-      <td>embedded_omniverse_python3_threaded</td>
-    </tr>
-    <tr>
       <td>Kernel (display name)</td>
       <td>Embedded Omniverse (Python 3)</td>
       <td>Embedded Omniverse (Python 3) [threaded]</td>
@@ -170,31 +171,36 @@ Both the Jupyter Notebook server and the IPython kernels are designed to be laun
       <td><p align="center"><img src="exts/semu.misc.jupyter_notebook/data/kernels/embedded_omniverse_python3_threaded/logo-64x64.png" width="50px"></p></td>
     </tr>
     <tr>
-      <td>Number of instanceable kernels</td>
-      <td>unlimited</td>
+      <td>Kernel (raw name)</td>
+      <td>embedded_omniverse_python3_socket</td>
+      <td>embedded_omniverse_python3_threaded</td>
+    </tr>
+    <tr>
+      <td>Instanceable kernels</td>
+      <td>Unlimited</td>
       <td>1 (at the moment)</td>
     </tr>
     <tr>
-      <td>Python execution backend</td>
+      <td>Python backend</td>
       <td>Omniverse Kit embedded Python</td>
       <td>IPython</td>
     </tr>
     <tr>
-      <td>Python execution implementation</td>
+      <td>Code execution</td>
       <td>Intercept Jupyter-IPython communication, forward and execute code in Omniverse Kit and send back the results to the published by the notebook</td>
-      <td>Pass the Omniverse Kit Python scope (<i>globals<i>) to a threaded IPython to execute the code</td>
+      <td>Pass the Omniverse Kit Python scope (<i>globals</i>) to a threaded IPython to execute the code</td>
     </tr>
     <tr>
       <td>Limitations</td>
       <td>
-        <ul style="margin-left: 0.5em; padding-left: 0.5em;">
+        <ul>
           <li>IPython magic commands are not available</li>
           <li>Printing, inside callbacks, is not displayed in the notebook but in the Omniverse terminal</li>
           <li>Autocompletion is not available</li>
         </ul>
       </td>
       <td>
-        <ul style="margin-left: 0.5em; padding-left: 0.5em;">
+        <ul>
           <li>Problem with the execution of asynchronous code (to be fixed in future releases)</li>
           <li>Keep resources alive when the extension is reloaded/disabled (to be fixed in future releases)</li>
         </ul>
