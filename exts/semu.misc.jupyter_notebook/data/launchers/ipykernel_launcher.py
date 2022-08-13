@@ -6,12 +6,24 @@ import types
 import struct
 import socket
 
+
+SOCKET_PORT = 8224
+PACKAGES_PATH = []
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# add packages to sys.path
+with open(os.path.join(SCRIPT_DIR, "packages.txt"), "r") as f:
+    for p in f.readlines():
+        p = p.strip()
+        if p:
+            PACKAGES_PATH.append(p)
+            if p not in sys.path:
+                print("Adding package to sys.path: {}".format(p))
+                sys.path.append(p)
+
+
 from ipykernel.jsonutil import json_clean
 from ipykernel.kernelapp import IPKernelApp as _IPKernelApp
-
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SOCKET_PORT = 8224
 
 
 async def execute_request(self, stream, ident, parent):
