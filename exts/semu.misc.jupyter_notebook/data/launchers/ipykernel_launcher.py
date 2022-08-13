@@ -70,7 +70,10 @@ async def execute_request(self, stream, ident, parent):
             data = _recv_msg(s)
             reply_content = json.loads(data.decode("utf-8"))
         except Exception as e:
+            print('\x1b[0;31m==================================================\x1b[0m')
+            print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
             print(e)
+            print('\x1b[0;31m==================================================\x1b[0m')
             return
     
     if reply_content["output"]:
