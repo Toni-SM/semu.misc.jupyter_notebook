@@ -120,12 +120,13 @@ if __name__ == "__main__":
 
     # assets path
     app_dir = []
-    for p in PACKAGES_PATH:
-        print("Checking package to app_dir: {}".format(p))
-        if os.path.exists(os.path.join(p, "share", "jupyter", "lab")):
-            app_dir.append("--app-dir={}".format(os.path.join(p, "share", "jupyter", "lab")))
-            break
-    print("app_dir: {}".format(app_dir))
+    if not classic_notebook_interface:
+        for p in PACKAGES_PATH:
+            print("Checking package to app_dir: {}".format(p))
+            if os.path.exists(os.path.join(p, "share", "jupyter", "lab")):
+                app_dir.append("--app-dir={}".format(os.path.join(p, "share", "jupyter", "lab")))
+                break
+        print("app_dir: {}".format(app_dir))
 
     # clean up the argv
     argv = app_dir + [token] + [notebook_dir] + argv[5].split(" ")
