@@ -9,9 +9,9 @@ import socket
 import asyncio
 import traceback
 import threading
+import subprocess
 import contextlib
 from io import StringIO
-from subprocess import Popen
 from dis import COMPILER_FLAG_NAMES
 try:
     from ast import PyCF_ALLOW_TOP_LEVEL_AWAIT
@@ -59,6 +59,8 @@ def _get_compiler_flags() -> int:
 def _get_event_loop() -> asyncio.AbstractEventLoop:
     """Backward compatible function for getting the event loop
     """
+    if sys.platform == 'win32':
+        return asyncio.WindowsSelectorEventLoopPolicy().get_event_loop()  # SelectorEventLoop()
     try:
         if sys.version_info >= (3, 7):
             return asyncio.get_running_loop()
@@ -139,6 +141,7 @@ class Extension(omni.ext.IExt):
         # close the jupyter notebook (external process)
         if self._run_in_external_process:
             if self._process is not None:
+                process_pid = self._process.pid
                 try:
                     self._process.terminate()  # .kill()
                 except OSError as e:
@@ -151,6 +154,9 @@ class Extension(omni.ext.IExt):
                             raise
                 self._process.wait()
                 self._process = None
+                # make sure the process is not running anymore in Windows
+                if sys.platform == 'win32':
+                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(process_pid)])
         # close the jupyter notebook (internal thread)
         else:
             if self._app is not None:
@@ -325,7 +331,12 @@ class Extension(omni.ext.IExt):
         with open(packages_txt, "w") as f:
             f.write("\n".join(paths))
 
-        cmd = [os.path.abspath(os.path.join(os.path.dirname(os.__file__), "..", "..", "bin", "python3")), 
+        if sys.platform == 'win32':
+            executable_path = os.path.abspath(os.path.join(os.path.dirname(os.__file__), "..", "python.exe"))
+        else:
+            executable_path = os.path.abspath(os.path.join(os.path.dirname(os.__file__), "..", "..", "bin", "python3"))
+
+        cmd = [executable_path, 
                os.path.join(self._extension_path, "data", "launchers", "jupyter_launcher.py"),
                self._notebook_ip,
                str(self._notebook_port),
@@ -337,7 +348,7 @@ class Extension(omni.ext.IExt):
         carb.log_info("Starting Jupyter server in separate process")
         carb.log_info("  Command: " + " ".join(cmd))
         try:
-            self._process = Popen(cmd, cwd=os.path.join(self._extension_path, "data", "launchers"))
+            self._process = subprocess.Popen(cmd, cwd=os.path.join(self._extension_path, "data", "launchers"))
         except Exception as e:
             carb.log_error("Error starting Jupyter server: {}".format(e))
             self._process = None
