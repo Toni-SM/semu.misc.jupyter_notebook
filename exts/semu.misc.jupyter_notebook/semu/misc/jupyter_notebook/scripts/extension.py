@@ -307,6 +307,12 @@ class Extension(omni.ext.IExt):
     def _launch_jupyter_process(self) -> None:
         """Launch the Jupyter notebook in a separate process
         """
+        # get packages path
+        paths = [p for p in sys.path if "pip3-envs" in p]
+        packages_txt = os.path.join(self._extension_path, "data", "launchers", "packages.txt")
+        with open(packages_txt, "w") as f:
+            f.write("\n".join(paths))
+
         cmd = [os.path.abspath(os.path.join(os.path.dirname(os.__file__), "..", "..", "bin", "python3")), 
                os.path.join(self._extension_path, "data", "launchers", "jupyter_launcher.py"),
                self._notebook_ip,
