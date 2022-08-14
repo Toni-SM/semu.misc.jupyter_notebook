@@ -47,7 +47,7 @@
 <a name="usage"></a>
 ### Extension usage
 
-Enabling the extension launches the Jupyter Notebook server ([JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) or [Jupyter Notebook](https://jupyter-notebook.readthedocs.io/en/latest/)) in the background. The notebook can then be opened in the browser via its URL, which is also indicated inside the Omniverse application in the *Windows > Embedded Jupyter Notebook* menu
+Enabling the extension launches the Jupyter Notebook server ([JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) or [Jupyter Notebook](https://jupyter-notebook.readthedocs.io/en/latest/)) in the background. The notebook can then be opened in the browser via its URL (`http://WORKSTATION_IP:PORT/`), which is also indicated inside the Omniverse application in the *Windows > Embedded Jupyter Notebook* menu
 
 <br>
 <p align="center">
@@ -191,17 +191,18 @@ Both the Jupyter Notebook server and the IPython kernels are designed to be laun
       <td>Pass the Omniverse Kit Python scope (<i>globals</i>) to a threaded IPython to execute the code</td>
     </tr>
     <tr>
-      <td>Limitations</td>
+      <td>Main limitations</td>
       <td>
         <ul>
           <li>IPython magic commands are not available</li>
           <li>Printing, inside callbacks, is not displayed in the notebook but in the Omniverse terminal</li>
           <li>Autocompletion is not available</li>
+          <li>Matplotlib plotting is not available in notebooks</li>
         </ul>
       </td>
       <td>
         <ul>
-          <li>Problem with the execution of asynchronous code (to be fixed in future releases)</li>
+          <li>Problem with the execution of asynchronous code due to the nested event loops (to be fixed in future releases)</li>
           <li>Keep resources alive when the extension is reloaded/disabled (to be fixed in future releases)</li>
         </ul>
       </td>
