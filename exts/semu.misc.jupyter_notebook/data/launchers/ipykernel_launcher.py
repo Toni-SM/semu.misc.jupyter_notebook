@@ -78,7 +78,7 @@ async def execute_request(self, stream, ident, parent):
         reply_content.update({"engine_info": {"engine_uuid": self.ident, 
                                               "engine_id": self.int_id, 
                                               "method": "execute"}})
-        print('\x1b[0;31m---------------------------------------------------------------------------\x1b[0m')
+        print('\x1b[0;31m--------------------------------------------------\x1b[0m')
         for traceback_line in reply_content["traceback"]:
             traceback_line = traceback_line.replace(reply_content["ename"], 
                                                     "\x1b[0;31m{}\x1b[0m".format(reply_content["ename"]))
