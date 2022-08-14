@@ -110,9 +110,9 @@ class Extension(omni.ext.IExt):
         self._classic_notebook_interface = self._settings.get("/exts/semu.misc.jupyter_notebook/classic_notebook_interface")
 
         # menu item
-        editor_menu = omni.kit.ui.get_editor_menu()
-        if editor_menu:
-            self._menu = editor_menu.add_item(Extension.MENU_PATH, self._show_notification, toggle=False, value=False)
+        self._editor_menu = omni.kit.ui.get_editor_menu()
+        if self._editor_menu:
+            self._menu = self._editor_menu.add_item(Extension.MENU_PATH, self._show_notification, toggle=False, value=False)
         
         # create socket
         self._create_socket()
@@ -129,6 +129,10 @@ class Extension(omni.ext.IExt):
         if self._extension_path is not None:
             sys.path.remove(os.path.join(self._extension_path, "data", "provisioners"))
             self._extension_path = None
+        # clean up menu item
+        if self._menu is not None:
+            self._editor_menu.remove_item(self._menu)
+            self._menu = None
         # close the socket
         if self._server:
             self._server.close()
