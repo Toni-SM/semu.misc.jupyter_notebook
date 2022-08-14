@@ -3,8 +3,8 @@ import sys
 import time
 import json
 import types
-import struct
 import socket
+import asyncio
 
 
 SOCKET_PORT = 8224
@@ -27,21 +27,17 @@ from ipykernel.kernelapp import IPKernelApp as _IPKernelApp
 
 
 async def execute_request(self, stream, ident, parent):
-    def _recvall(conn, n):
-        data = bytearray()
-        while len(data) < n:
-            packet = conn.recv(n - len(data))
-            if not packet:
-                return None
-            data.extend(packet)
-        return data
-
-    def _recv_msg(conn):
-        raw_msglen = _recvall(conn, 4)
-        if not raw_msglen:
-            return None
-        return _recvall(conn, struct.unpack('>I', raw_msglen)[0])
-
+    async def send_and_recv(message):
+        reader, writer = await asyncio.open_connection(host="127.0.0.1", 
+                                                       port=SOCKET_PORT,
+                                                       family=socket.AF_INET)
+        writer.write(message.encode())
+        await writer.drain()
+        data = await reader.read()
+        writer.close()
+        await writer.wait_closed()
+        return data.decode()
+    
     try:
         content = parent["content"]
         code = content["code"]
@@ -61,21 +57,16 @@ async def execute_request(self, stream, ident, parent):
         self.execution_count += 1
         self._publish_execute_input(code, parent, self.execution_count)
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.connect(("127.0.0.1", SOCKET_PORT))
-            # send code
-            s.sendall(struct.pack(">I", len(code)) + code.encode("utf-8"))
-            # receive reply
-            data = _recv_msg(s)
-            reply_content = json.loads(data.decode("utf-8"))
-        except Exception as e:
-            print('\x1b[0;31m==================================================\x1b[0m')
-            print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
-            print(e)
-            print('\x1b[0;31m==================================================\x1b[0m')
-            return
-    
+    try:
+        data = await send_and_recv(code)
+        reply_content = json.loads(data)
+    except Exception as e:
+        print('\x1b[0;31m==================================================\x1b[0m')
+        print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
+        print(e)
+        print('\x1b[0;31m==================================================\x1b[0m')
+        return
+
     if reply_content["output"]:
         print(reply_content["output"])
     reply_content.pop("output", None)

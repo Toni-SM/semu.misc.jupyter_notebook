@@ -4,7 +4,6 @@ import os
 import sys
 import json
 import types
-import struct
 import socket
 import asyncio
 import traceback
@@ -59,8 +58,6 @@ def _get_compiler_flags() -> int:
 def _get_event_loop() -> asyncio.AbstractEventLoop:
     """Backward compatible function for getting the event loop
     """
-    if sys.platform == 'win32':
-        return asyncio.WindowsSelectorEventLoopPolicy().get_event_loop()  # SelectorEventLoop()
     try:
         if sys.version_info >= (3, 7):
             return asyncio.get_running_loop()
@@ -96,9 +93,8 @@ class Extension(omni.ext.IExt):
         self._locals = self._globals
 
         self._app = None
-        self._socket = None
+        self._server = None
         self._process = None
-        self._stop_socket = False
 
         self._settings = carb.settings.get_settings()
         self._extension_path = omni.kit.app.get_app().get_extension_manager().get_extension_path(ext_id)
@@ -119,8 +115,7 @@ class Extension(omni.ext.IExt):
             self._menu = editor_menu.add_item(Extension.MENU_PATH, self._show_notification, toggle=False, value=False)
         
         # create socket
-        self._socket = self._create_socket()
-        _get_event_loop().add_reader(self._socket, self._on_accept_connection)
+        self._create_socket()
         
         # run jupyter notebook in a separate process
         if self._run_in_external_process:
@@ -135,9 +130,9 @@ class Extension(omni.ext.IExt):
             sys.path.remove(os.path.join(self._extension_path, "data", "provisioners"))
             self._extension_path = None
         # close the socket
-        if self._socket:
-            _get_event_loop().remove_reader(self._socket)
-            self._socket.close()
+        if self._server:
+            self._server.close()
+            _get_event_loop().run_until_complete(self._server.wait_closed())
         # close the jupyter notebook (external process)
         if self._run_in_external_process:
             if self._process is not None:
@@ -152,11 +147,12 @@ class Extension(omni.ext.IExt):
                         from errno import ESRCH
                         if not isinstance(e, ProcessLookupError) or e.errno != ESRCH:
                             raise
-                self._process.wait()
-                self._process = None
                 # make sure the process is not running anymore in Windows
                 if sys.platform == 'win32':
                     subprocess.call(['taskkill', '/F', '/T', '/PID', str(process_pid)])
+                # wait for the process to terminate
+                self._process.wait()
+                self._process = None
         # close the jupyter notebook (internal thread)
         else:
             if self._app is not None:
@@ -201,11 +197,8 @@ class Extension(omni.ext.IExt):
 
     # internal socket methods
 
-    def _create_socket(self) -> socket.socket:
-        """Create a socket to listen for incoming connections from the IPython kernel
-
-        :return: The socket
-        :rtype: socket.socket
+    def _create_socket(self) -> None:
+        """Create a socket server to listen for incoming connections from the IPython kernel
         """
         socket_port = self._settings.get("/exts/semu.misc.jupyter_notebook/socket_port")
         socket_txt = os.path.join(self._extension_path, "data", "launchers", "socket.txt")
@@ -214,63 +207,42 @@ class Extension(omni.ext.IExt):
         if os.path.exists(socket_txt):
             os.remove(socket_txt)
 
-        # create socket
-        _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        _socket.bind(("127.0.0.1", socket_port))
-        _socket.listen(5)
+        class ServerProtocol(asyncio.Protocol):
+            def __init__(self, parent) -> None:
+                super().__init__()
+                self._parent = parent
+
+            def connection_made(self, transport):
+                peername = transport.get_extra_info('peername')
+                carb.log_info('Connection from {}'.format(peername))
+                self.transport = transport
+
+            def data_received(self, data):
+                asyncio.run_coroutine_threadsafe(self._parent._exec_code_async(data.decode(), self.transport),
+                                                 _get_event_loop())
+
+        async def server_task():
+            self._server = await _get_event_loop().create_server(protocol_factory=lambda: ServerProtocol(self), 
+                                                                 host="127.0.0.1", 
+                                                                 port=socket_port,
+                                                                 family=socket.AF_INET,
+                                                                 reuse_port=None if sys.platform == 'win32' else True)
+            await self._server.start_serving()
+
+        task = _get_event_loop().create_task(server_task())
 
         # write the socket port to socket.txt file
         carb.log_info("Internal socket server is running at port {}".format(socket_port))
         with open(socket_txt, "w") as f:
             f.write(str(socket_port))
 
-        return _socket
-
-    def _on_accept_connection(self) -> None:
-        """Accept a connection from the IPython kernel
-        """
-        async def run() -> None:
-            """Coroutine for handling the incoming connection
-            """
-            def _recvall(n):
-                data = bytearray()
-                while len(data) < n:
-                    packet = conn.recv(n - len(data))
-                    if not packet:
-                        return None
-                    data.extend(packet)
-                return data
-
-            def _recv_msg():
-                raw_msglen = _recvall(4)
-                if not raw_msglen:
-                    return None
-                return _recvall(struct.unpack('>I', raw_msglen)[0])
-            
-            def _handle_incoming_data() -> None:
-                """Handle incoming data from the IPython kernel
-                """
-                data = _recv_msg()
-                if not data:
-                    _get_event_loop().remove_reader(conn)
-                    conn.close()
-                asyncio.run_coroutine_threadsafe(self._exec_code_async(data.decode("utf-8"), conn), _get_event_loop())
-            
-            _get_event_loop().add_reader(conn, _handle_incoming_data)
-
-        if self._socket is None:
-            return
-        conn, _ = self._socket.accept()
-        task = _get_event_loop().create_task(run())
-
-    async def _exec_code_async(self, statement: str, conn: socket.socket) -> None:
+    async def _exec_code_async(self, statement: str, transport: asyncio.Transport) -> None:
         """Execute the statement in the Omniverse scope and send the result to the IPython kernel
         
         :param statement: statement to execute
         :type statement: str
-        :param conn: connection to the IPython kernel
-        :type conn: socket.socket
+        :param transport: transport to send the result to the IPython kernel
+        :type transport: asyncio.Transport
 
         :return: reply dictionary as ipython notebook expects it
         :rtype: dict
@@ -314,11 +286,10 @@ class Extension(omni.ext.IExt):
 
         # send the reply to the IPython kernel
         reply = json.dumps(reply)
-        conn.sendall(struct.pack(">I", len(reply)) + reply.encode("utf-8"))
+        transport.write(reply.encode())
 
         # close the connection
-        _get_event_loop().remove_reader(conn)
-        conn.close()
+        transport.close()
 
     # launch Jupyter Notebook methods
 
