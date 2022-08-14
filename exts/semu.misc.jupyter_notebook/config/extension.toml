@@ -45,4 +45,4 @@ exts."semu.misc.jupyter_notebook".notebook_port = 8225
 exts."semu.misc.jupyter_notebook".token = ""
 exts."semu.misc.jupyter_notebook".notebook_dir = ""
 # jupyter notebook's command line options other than: '--ip', '--port', '--token', '--notebook-dir'
-exts."semu.misc.jupyter_notebook".command_line_options = "--allow-root --no-browser"
+exts."semu.misc.jupyter_notebook".command_line_options = "--allow-root --no-browser --JupyterApp.answer_yes=True"

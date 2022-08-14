@@ -2,6 +2,11 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.0.1] - 2022-08-08
+## [0.0.2-beta] - 2022-08-14
+- Jupyter Lab
+- Launch Jupyter in separate (sub)process
+- Embedded kernel using socket
+
+## [0.0.1-beta] - 2022-08-08
 ### Added
-- Create the extension
+- Jupyter Notebook
