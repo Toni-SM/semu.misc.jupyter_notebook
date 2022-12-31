@@ -30,7 +30,7 @@
 
     * Git url (git+https) as extension search path
 
-        :warning: *There seems to be a bug when installing extensions using the git url (git+https) as extension search path in Isaac Sim 2022.1.0. In this case, it is recommended to install the extension by importing the .zip file*
+        :warning: *There seems to be a bug when installing extensions using the git url (git+https) as extension search path in some Omniverse applications. In this case, it is recommended to install the extension by importing the .zip file*
     
         ```
         git+https://github.com/Toni-SM/semu.misc.jupyter_notebook.git?branch=main&dir=exts
@@ -92,6 +92,11 @@ The extension can be configured by editing the [config.toml](exts/semu.misc.jupy
       <td>classic_notebook_interface</td>
       <td>false</td>
       <td>Whether the Jupyter Notebook server will use the JupyterLab interface (default interface) or the classic Jupyter Notebook interface</td>
+    </tr>
+    <tr>
+      <td>kill_processes_with_port_in_use</td>
+      <td>true</td>
+      <td>Whether to kill applications/processes that use the same ports (8224 and 8225 by default) before activating the extension. Disable this option if you want to launch multiple applications that have this extension active</td>
     </tr>
   </tbody>
 </table>
