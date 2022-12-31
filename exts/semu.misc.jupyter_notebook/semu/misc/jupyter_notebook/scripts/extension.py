@@ -113,7 +113,11 @@ class Extension(omni.ext.IExt):
         self._editor_menu = omni.kit.ui.get_editor_menu()
         if self._editor_menu:
             self._menu = self._editor_menu.add_item(Extension.MENU_PATH, self._show_notification, toggle=False, value=False)
-        
+
+        # shutdown stream
+        self.shutdown_stream_event = omni.kit.app.get_app().get_shutdown_event_stream() \
+            .create_subscription_to_pop(self._on_shutdown_event, name="semu.misc.jupyter_notebook", order=0)
+
         # create socket
         self._create_socket()
         
@@ -167,6 +171,10 @@ class Extension(omni.ext.IExt):
                 self._app = None
 
     # extension ui methods
+
+    def _on_shutdown_event(self, event):
+        if event.type == omni.kit.app.POST_QUIT_EVENT_TYPE:
+            self.on_shutdown()
 
     def _show_notification(self, *args, **kwargs) -> None:
         """Show a Jupyter Notebook URL in the notification area
