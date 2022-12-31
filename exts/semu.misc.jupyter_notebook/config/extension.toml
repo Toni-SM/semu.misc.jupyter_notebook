@@ -39,6 +39,7 @@ use_online_index = true
 exts."semu.misc.jupyter_notebook".socket_port = 8224
 exts."semu.misc.jupyter_notebook".run_in_external_process = true
 exts."semu.misc.jupyter_notebook".classic_notebook_interface = false
+exts."semu.misc.jupyter_notebook".kill_processes_with_port_in_use = true
 # jupyter notebook settings
 exts."semu.misc.jupyter_notebook".notebook_ip = "0.0.0.0"
 exts."semu.misc.jupyter_notebook".notebook_port = 8225

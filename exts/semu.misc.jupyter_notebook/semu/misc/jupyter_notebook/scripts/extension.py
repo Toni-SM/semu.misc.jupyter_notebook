@@ -109,6 +109,9 @@ class Extension(omni.ext.IExt):
         self._run_in_external_process = self._settings.get("/exts/semu.misc.jupyter_notebook/run_in_external_process")
         self._classic_notebook_interface = self._settings.get("/exts/semu.misc.jupyter_notebook/classic_notebook_interface")
 
+        self._socket_port = self._settings.get("/exts/semu.misc.jupyter_notebook/socket_port")
+        kill_processes_with_port_in_use = self._settings.get("/exts/semu.misc.jupyter_notebook/kill_processes_with_port_in_use")
+
         # menu item
         self._editor_menu = omni.kit.ui.get_editor_menu()
         if self._editor_menu:
@@ -117,6 +120,38 @@ class Extension(omni.ext.IExt):
         # shutdown stream
         self.shutdown_stream_event = omni.kit.app.get_app().get_shutdown_event_stream() \
             .create_subscription_to_pop(self._on_shutdown_event, name="semu.misc.jupyter_notebook", order=0)
+
+        # ensure port is free
+        if kill_processes_with_port_in_use:
+            # windows
+            if sys.platform == "win32":
+                pids = []
+                cmd = ["netstat", "-ano"]
+                p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+                for line in p.stdout:
+                    if str(self._socket_port).encode() in line or str(self._notebook_port).encode() in line:
+                        pids.append(line.strip().split(b" ")[-1].decode())
+                p.wait()
+                for pid in pids:
+                    carb.log_warn(f"Forced process shutdown with PID {pid}")
+                    cmd = ["taskkill", "/PID", pid, "/F"]
+                    subprocess.Popen(cmd).wait()
+            # linux
+            elif sys.platform == "linux":
+                pids = []
+                cmd = ["netstat", "-ltnup"]
+                try:
+                    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+                    for line in p.stdout:
+                        if f":{self._socket_port}".encode() in line or f":{self._notebook_port}".encode() in line:
+                            pids.append(line.strip().split(b" ")[-1].decode().split("/")[0])
+                    p.wait()
+                except FileNotFoundError as e:
+                    carb.log_warn(f"Command (netstat) not available. Install it using `apt install net-tools`")
+                for pid in pids:
+                    carb.log_warn(f"Forced process shutdown with PID {pid}")
+                    cmd = ["kill", "-9", pid]
+                    subprocess.Popen(cmd).wait()
 
         # create socket
         self._create_socket()
@@ -212,7 +247,6 @@ class Extension(omni.ext.IExt):
     def _create_socket(self) -> None:
         """Create a socket server to listen for incoming connections from the IPython kernel
         """
-        socket_port = self._settings.get("/exts/semu.misc.jupyter_notebook/socket_port")
         socket_txt = os.path.join(self._extension_path, "data", "launchers", "socket.txt")
 
         # delete socket.txt file
@@ -236,7 +270,7 @@ class Extension(omni.ext.IExt):
         async def server_task():
             self._server = await _get_event_loop().create_server(protocol_factory=lambda: ServerProtocol(self), 
                                                                  host="127.0.0.1", 
-                                                                 port=socket_port,
+                                                                 port=self._socket_port,
                                                                  family=socket.AF_INET,
                                                                  reuse_port=None if sys.platform == 'win32' else True)
             await self._server.start_serving()
@@ -244,9 +278,9 @@ class Extension(omni.ext.IExt):
         task = _get_event_loop().create_task(server_task())
 
         # write the socket port to socket.txt file
-        carb.log_info("Internal socket server is running at port {}".format(socket_port))
+        carb.log_info("Internal socket server is running at port {}".format(self._socket_port))
         with open(socket_txt, "w") as f:
-            f.write(str(socket_port))
+            f.write(str(self._socket_port))
 
     async def _exec_code_async(self, statement: str, transport: asyncio.Transport) -> None:
         """Execute the statement in the Omniverse scope and send the result to the IPython kernel
