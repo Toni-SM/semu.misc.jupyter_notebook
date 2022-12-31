@@ -4,6 +4,7 @@ import time
 import json
 import types
 import socket
+import inspect
 import asyncio
 
 
@@ -25,6 +26,11 @@ with open(os.path.join(SCRIPT_DIR, "packages.txt"), "r") as f:
 from ipykernel.jsonutil import json_clean
 from ipykernel.kernelapp import IPKernelApp as _IPKernelApp
 
+
+def _accepts_cell_id(meth):
+    parameters = inspect.signature(meth).parameters
+    cid_param = parameters.get("cell_id")
+    return (cid_param and cid_param.kind == cid_param.KEYWORD_ONLY) or any(p.kind == p.VAR_KEYWORD for p in parameters.values())
 
 async def execute_request(self, stream, ident, parent):
     async def send_and_recv(message):
@@ -57,36 +63,50 @@ async def execute_request(self, stream, ident, parent):
         self.execution_count += 1
         self._publish_execute_input(code, parent, self.execution_count)
 
-    try:
-        data = await send_and_recv(code)
-        reply_content = json.loads(data)
-    except Exception as e:
-        print('\x1b[0;31m==================================================\x1b[0m')
-        print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
-        print(e)
-        print('\x1b[0;31m==================================================\x1b[0m')
-        return
+    # magic commands
+    if code.startswith('%'):
+        cell_id = (parent.get("metadata") or {}).get("cellId")
 
-    if reply_content["output"]:
-        print(reply_content["output"])
-    reply_content.pop("output", None)
+        if _accepts_cell_id(self.do_execute):
+            reply_content = self.do_execute(code, silent, store_history, user_expressions, allow_stdin, cell_id=cell_id)
+        else:
+            reply_content = self.do_execute(code, silent, store_history, user_expressions, allow_stdin)
 
-    reply_content.update({"execution_count": self.execution_count,
-                          "user_expressions": {},
-                          "payload": []})
-    if reply_content["status"] == "error":
-        reply_content.update({"engine_info": {"engine_uuid": self.ident, 
-                                              "engine_id": self.int_id, 
-                                              "method": "execute"}})
-        print('\x1b[0;31m--------------------------------------------------\x1b[0m')
-        for traceback_line in reply_content["traceback"]:
-            traceback_line = traceback_line.replace(reply_content["ename"], 
-                                                    "\x1b[0;31m{}\x1b[0m".format(reply_content["ename"]))
-            if traceback_line.startswith("Traceback"):
-                print(traceback_line)
-            else:
-                print("Traceback (most recent call last) " + traceback_line)
-        
+        if inspect.isawaitable(reply_content):
+            reply_content = await reply_content
+
+    # python code
+    else:
+        try:
+            data = await send_and_recv(code)
+            reply_content = json.loads(data)
+        except Exception as e:
+            print('\x1b[0;31m==================================================\x1b[0m')
+            print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
+            print(e)
+            print('\x1b[0;31m==================================================\x1b[0m')
+            return
+
+        if reply_content["output"]:
+            print(reply_content["output"])
+        reply_content.pop("output", None)
+
+        reply_content.update({"execution_count": self.execution_count,
+                            "user_expressions": {},
+                            "payload": []})
+        if reply_content["status"] == "error":
+            reply_content.update({"engine_info": {"engine_uuid": self.ident, 
+                                                "engine_id": self.int_id, 
+                                                "method": "execute"}})
+            print('\x1b[0;31m--------------------------------------------------\x1b[0m')
+            for traceback_line in reply_content["traceback"]:
+                traceback_line = traceback_line.replace(reply_content["ename"], 
+                                                        "\x1b[0;31m{}\x1b[0m".format(reply_content["ename"]))
+                if traceback_line.startswith("Traceback"):
+                    print(traceback_line)
+                else:
+                    print("Traceback (most recent call last) " + traceback_line)
+
     sys.stdout.flush()
     sys.stderr.flush()
 
