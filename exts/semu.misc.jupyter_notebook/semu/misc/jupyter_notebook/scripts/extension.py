@@ -129,8 +129,9 @@ class Extension(omni.ext.IExt):
                 cmd = ["netstat", "-ano"]
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
                 for line in p.stdout:
-                    if str(self._socket_port).encode() in line or str(self._notebook_port).encode() in line:
-                        pids.append(line.strip().split(b" ")[-1].decode())
+                    if f":{self._socket_port}".encode() in line or f":{self._notebook_port}".encode() in line:
+                        if "listening".encode() in line.lower():
+                            pids.append(line.strip().split(b" ")[-1].decode())
                 p.wait()
                 for pid in pids:
                     carb.log_warn(f"Forced process shutdown with PID {pid}")
