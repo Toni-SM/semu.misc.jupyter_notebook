@@ -1,13 +1,11 @@
 import os
 import sys
-import time
 import json
-import types
 import socket
-import inspect
 import asyncio
 
 
+SOCKET_HOST = "127.0.0.1"
 SOCKET_PORT = 8224
 PACKAGES_PATH = []
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,122 +21,86 @@ with open(os.path.join(SCRIPT_DIR, "packages.txt"), "r") as f:
                 sys.path.append(p)
 
 
-from ipykernel.jsonutil import json_clean
-from ipykernel.kernelapp import IPKernelApp as _IPKernelApp
+from ipykernel.kernelbase import Kernel
+from ipykernel.kernelapp import IPKernelApp
 
 
-def _accepts_cell_id(meth):
-    parameters = inspect.signature(meth).parameters
-    cid_param = parameters.get("cell_id")
-    return (cid_param and cid_param.kind == cid_param.KEYWORD_ONLY) or any(p.kind == p.VAR_KEYWORD for p in parameters.values())
+async def _send_and_recv(message):
+    reader, writer = await asyncio.open_connection(host=SOCKET_HOST, 
+                                                   port=SOCKET_PORT,
+                                                   family=socket.AF_INET)
+    writer.write(message.encode())
+    await writer.drain()
+    data = await reader.read()
+    writer.close()
+    await writer.wait_closed()
+    return data.decode()
 
-async def execute_request(self, stream, ident, parent):
-    async def send_and_recv(message):
-        reader, writer = await asyncio.open_connection(host="127.0.0.1", 
-                                                       port=SOCKET_PORT,
-                                                       family=socket.AF_INET)
-        writer.write(message.encode())
-        await writer.drain()
-        data = await reader.read()
-        writer.close()
-        await writer.wait_closed()
-        return data.decode()
-    
-    try:
-        content = parent["content"]
-        code = content["code"]
-        silent = content["silent"]
-        store_history = content.get("store_history", not silent)
-        user_expressions = content.get("user_expressions", {})
-        allow_stdin = content.get("allow_stdin", False)
-    except Exception:
-        self.log.error("Got bad msg: ")
-        self.log.error("%s", parent)
-        return
 
-    stop_on_error = content.get("stop_on_error", True)
-    metadata = self.init_metadata(parent)
+class EmbeddedKernel(Kernel):
+    """
+    Omniverse Kit Python wrapper kernels
 
-    if not silent:
-        self.execution_count += 1
-        self._publish_execute_input(code, parent, self.execution_count)
+    It re-use the IPython's kernel machinery
+    https://jupyter-client.readthedocs.io/en/latest/wrapperkernels.html
+    """
+    # kernel info: https://jupyter-client.readthedocs.io/en/latest/messaging.html#kernel-info
+    implementation = "Omniverse Kit (Python 3)"
+    implementation_version = "0.1.0"
+    language_info = {
+        "name": "python",
+        "version": "3.7",  # TODO: get from Omniverse Kit
+        "mimetype": "text/x-python",
+        "file_extension": ".py",
+    }
+    banner = "Embedded Omniverse (Python 3)"
+    help_links = [{'text': "semu.misc.jupyter_notebook", 'url': "https://github.com/Toni-SM/semu.misc.jupyter_notebook"}]
 
-    # magic commands
-    if code.startswith('%'):
-        cell_id = (parent.get("metadata") or {}).get("cellId")
+    async def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
+        # magic commands
+        if code.startswith('%'):
+            # TODO: process magic commands
+            pass
 
-        if _accepts_cell_id(self.do_execute):
-            reply_content = self.do_execute(code, silent, store_history, user_expressions, allow_stdin, cell_id=cell_id)
-        else:
-            reply_content = self.do_execute(code, silent, store_history, user_expressions, allow_stdin)
-
-        if inspect.isawaitable(reply_content):
-            reply_content = await reply_content
-
-    # python code
-    else:
         try:
-            data = await send_and_recv(code)
+            data = await _send_and_recv(code)
             reply_content = json.loads(data)
         except Exception as e:
+            # TODO: show network error in client
             print('\x1b[0;31m==================================================\x1b[0m')
             print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
             print(e)
             print('\x1b[0;31m==================================================\x1b[0m')
-            return
 
-        if reply_content["output"]:
-            print(reply_content["output"])
-        reply_content.pop("output", None)
-
-        reply_content.update({"execution_count": self.execution_count,
-                            "user_expressions": {},
-                            "payload": []})
+        # code execution stdout: {"status": str, "output": str}
+        if not silent:
+            if reply_content["output"]:
+                stream_content = {"name": "stdout", "text": reply_content["output"]}
+                self.send_response(self.iopub_socket, "stream", stream_content)
+        
+        # code execution error: {"status": str("error"), "output": str, "traceback": list(str), "ename": str, "evalue": str}
         if reply_content["status"] == "error":
-            reply_content.update({"engine_info": {"engine_uuid": self.ident, 
-                                                "engine_id": self.int_id, 
-                                                "method": "execute"}})
-            print('\x1b[0;31m--------------------------------------------------\x1b[0m')
+            text = "\x1b[0;31m--------------------------------------------------\x1b[0m"
             for traceback_line in reply_content["traceback"]:
-                traceback_line = traceback_line.replace(reply_content["ename"], 
-                                                        "\x1b[0;31m{}\x1b[0m".format(reply_content["ename"]))
+                traceback_line = traceback_line.replace(reply_content["ename"], "\x1b[0;31m{}\x1b[0m".format(reply_content["ename"]))
                 if traceback_line.startswith("Traceback"):
-                    print(traceback_line)
+                    text += f"\n{traceback_line}"
                 else:
-                    print("Traceback (most recent call last) " + traceback_line)
+                    text += f"\nTraceback (most recent call last) {traceback_line}"
+            stream_content = {"name": "stdout", "text": text}
+            self.send_response(self.iopub_socket, "stream", stream_content)
 
-    sys.stdout.flush()
-    sys.stderr.flush()
+        return {"status": "ok",  # "ok", "error", "aborted"
+                "execution_count": self.execution_count,  # the base class increments the execution count
+                "payload": [],
+                "user_expressions": {}}
 
-    if self._execute_sleep:
-        time.sleep(self._execute_sleep)
+    def do_debug_request(self, msg):
+        print(msg)
 
-    reply_content = json_clean(reply_content)
-    metadata = self.finish_metadata(parent, metadata, reply_content)
-
-    reply_msg = self.session.send(stream, "execute_reply", reply_content, parent, 
-                                  metadata=metadata, ident=ident)
-
-    self.log.debug("%s", reply_msg)
-
-    if not silent and reply_msg["content"]["status"] == "error" and stop_on_error:
-        self._abort_queues()
-
-
-class IPKernelApp(_IPKernelApp):
-    def initialize(self, argv=None):
-        super().initialize(argv)
-
-    def start(self):
-        self.kernel.shell_handlers["execute_request"] = types.MethodType(execute_request, self.kernel)
-        self.kernel.execute_request = types.MethodType(execute_request, self.kernel)
-        super().start()
-
-
-def launch_instance(cls, argv=None, **kwargs):
-    app = cls.instance()
-    app.initialize(argv)
-    app.start()
+    def do_complete(self, code, cursor_pos):        
+        print(code)
+        print(cursor_pos)
 
 
 
@@ -152,4 +114,4 @@ if __name__ == "__main__":
         with open(os.path.join(SCRIPT_DIR, "socket.txt"), "r") as f:
             SOCKET_PORT = int(f.read())
     
-    launch_instance(IPKernelApp)
+    IPKernelApp.launch_instance(kernel_class=EmbeddedKernel)
