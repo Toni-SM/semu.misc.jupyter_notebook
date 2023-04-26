@@ -38,8 +38,7 @@ async def _send_and_recv(message):
 
 
 class EmbeddedKernel(Kernel):
-    """
-    Omniverse Kit Python wrapper kernels
+    """Omniverse Kit Python wrapper kernels
 
     It re-use the IPython's kernel machinery
     https://jupyter-client.readthedocs.io/en/latest/wrapperkernels.html
@@ -57,50 +56,50 @@ class EmbeddedKernel(Kernel):
     help_links = [{'text': "semu.misc.jupyter_notebook", 'url': "https://github.com/Toni-SM/semu.misc.jupyter_notebook"}]
 
     async def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
+        """Execute user code
+        """
+        # https://jupyter-client.readthedocs.io/en/latest/messaging.html#execute
+        execute_reply = {"status": "ok", 
+                         "execution_count": self.execution_count,
+                         "payload": [], 
+                         "user_expressions": {}}
+        # no code
+        if not code.strip():
+            return execute_reply
         # magic commands
         if code.startswith('%'):
             # TODO: process magic commands
             pass
-
+        # python code
         try:
             data = await _send_and_recv(code)
             reply_content = json.loads(data)
         except Exception as e:
-            # TODO: show network error in client
-            print('\x1b[0;31m==================================================\x1b[0m')
+            # show network error in client
+            print("\x1b[0;31m==================================================\x1b[0m")
             print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
             print(e)
-            print('\x1b[0;31m==================================================\x1b[0m')
+            print("\x1b[0;31m==================================================\x1b[0m")
+            reply_content = {"status": "error", "output": "", "traceback": [], "ename": str(type(e).__name__), "evalue": str(e)}
 
         # code execution stdout: {"status": str, "output": str}
         if not silent:
             if reply_content["output"]:
                 stream_content = {"name": "stdout", "text": reply_content["output"]}
                 self.send_response(self.iopub_socket, "stream", stream_content)
-        
+        reply_content.pop("output", None)
+
         # code execution error: {"status": str("error"), "output": str, "traceback": list(str), "ename": str, "evalue": str}
         if reply_content["status"] == "error":
-            text = "\x1b[0;31m--------------------------------------------------\x1b[0m"
-            for traceback_line in reply_content["traceback"]:
-                traceback_line = traceback_line.replace(reply_content["ename"], "\x1b[0;31m{}\x1b[0m".format(reply_content["ename"]))
-                if traceback_line.startswith("Traceback"):
-                    text += f"\n{traceback_line}"
-                else:
-                    text += f"\nTraceback (most recent call last) {traceback_line}"
-            stream_content = {"name": "stdout", "text": text}
-            self.send_response(self.iopub_socket, "stream", stream_content)
+            self.send_response(self.iopub_socket, "error", reply_content)
 
-        return {"status": "ok",  # "ok", "error", "aborted"
-                "execution_count": self.execution_count,  # the base class increments the execution count
-                "payload": [],
-                "user_expressions": {}}
+        execute_reply["status"] = reply_content["status"]
+        execute_reply["execution_count"] = self.execution_count,  # the base class increments the execution count
+
+        return execute_reply
 
     def do_debug_request(self, msg):
-        print(msg)
-
-    def do_complete(self, code, cursor_pos):        
-        print(code)
-        print(cursor_pos)
+        return {}
 
 
 
