@@ -21,6 +21,7 @@ with open(os.path.join(SCRIPT_DIR, "packages.txt"), "r") as f:
                 sys.path.append(p)
 
 
+import jedi
 from ipykernel.kernelbase import Kernel
 from ipykernel.kernelapp import IPKernelApp
 
@@ -93,6 +94,7 @@ class EmbeddedKernel(Kernel):
         if reply_content["status"] == "error":
             self.send_response(self.iopub_socket, "error", reply_content)
 
+        # update request
         execute_reply["status"] = reply_content["status"]
         execute_reply["execution_count"] = self.execution_count,  # the base class increments the execution count
 
@@ -101,6 +103,31 @@ class EmbeddedKernel(Kernel):
     def do_debug_request(self, msg):
         return {}
 
+    def do_complete(self, code, cursor_pos):
+        """Code completation
+        """
+        # https://jupyter-client.readthedocs.io/en/latest/messaging.html#msging-completion
+        complete_request = {"status": "ok",
+                            "matches": [], 
+                            "cursor_start": 0,
+                            "cursor_end": cursor_pos, 
+                            "metadata": {}}
+        
+        # parse code
+        code = code[:cursor_pos]
+        if not code or code[-1] in [' ', '=', ':', '(', ')']:
+            return complete_request
+
+        # generate completions
+        script = jedi.Script(code, path="")
+        completions = script.complete()
+        delta = completions[0].get_completion_prefix_length() if completions else 0
+
+        # update request
+        complete_request["matches"] = [c.name for c in completions]
+        complete_request["cursor_start"] = cursor_pos - delta
+
+        return complete_request
 
 
 
