@@ -31,7 +31,7 @@ python = ["*"]
 name = "semu.misc.jupyter_notebook"
 
 [python.pipapi]
-requirements = ["nest_asyncio", "jupyterlab", "notebook"]
+requirements = ["nest_asyncio", "jupyterlab", "notebook", "jedi"]
 use_online_index = true
 
 [settings]
