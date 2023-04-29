@@ -21,7 +21,6 @@ with open(os.path.join(SCRIPT_DIR, "packages.txt"), "r") as f:
                 sys.path.append(p)
 
 
-import jedi
 from ipykernel.kernelbase import Kernel
 from ipykernel.kernelapp import IPKernelApp
 
@@ -103,7 +102,7 @@ class EmbeddedKernel(Kernel):
     def do_debug_request(self, msg):
         return {}
 
-    def do_complete(self, code, cursor_pos):
+    async def do_complete(self, code, cursor_pos):
         """Code completation
         """
         # https://jupyter-client.readthedocs.io/en/latest/messaging.html#msging-completion
@@ -119,15 +118,23 @@ class EmbeddedKernel(Kernel):
             return complete_request
 
         # generate completions
-        script = jedi.Script(code, path="")
-        completions = script.complete()
-        delta = completions[0].get_completion_prefix_length() if completions else 0
+        try:
+            data = await _send_and_recv("%!c" + code)
+            reply_content = json.loads(data)
+        except Exception as e:
+            # show network error in client
+            print("\x1b[0;31m==================================================\x1b[0m")
+            print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
+            print(e)
+            print("\x1b[0;31m==================================================\x1b[0m")
+            reply_content = {"matches": [], "delta": cursor_pos}
 
-        # update request
-        complete_request["matches"] = [c.name for c in completions]
-        complete_request["cursor_start"] = cursor_pos - delta
+        # update request: {"matches": list(str), "delta": int}
+        complete_request["matches"] = reply_content["matches"]
+        complete_request["cursor_start"] = cursor_pos - reply_content["delta"]
 
         return complete_request
+
 
 
 
