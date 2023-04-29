@@ -2,6 +2,7 @@ import __future__
 
 import os
 import sys
+import jedi
 import json
 import types
 import socket
@@ -265,8 +266,14 @@ class Extension(omni.ext.IExt):
                 self.transport = transport
 
             def data_received(self, data):
-                asyncio.run_coroutine_threadsafe(self._parent._exec_code_async(data.decode(), self.transport),
-                                                 _get_event_loop())
+                code = data.decode()
+                # completion
+                if code[:3] == "%!c":
+                    code = code[3:]
+                    asyncio.run_coroutine_threadsafe(self._parent._complete_code_async(code, self.transport), _get_event_loop())
+                # execution
+                else:
+                    asyncio.run_coroutine_threadsafe(self._parent._exec_code_async(code, self.transport), _get_event_loop())
 
         async def server_task():
             self._server = await _get_event_loop().create_server(protocol_factory=lambda: ServerProtocol(self), 
@@ -283,6 +290,32 @@ class Extension(omni.ext.IExt):
         with open(socket_txt, "w") as f:
             f.write(str(self._socket_port))
 
+
+    async def _complete_code_async(self, statement: str, transport: asyncio.Transport) -> None:
+        """Complete objects under the cursor and send the result to the IPython kernel
+        
+        :param statement: statement to complete
+        :type statement: str
+        :param transport: transport to send the result to the IPython kernel
+        :type transport: asyncio.Transport
+
+        :return: reply dictionary
+        :rtype: dict
+        """
+        # generate completions
+        script = jedi.Script(statement, path="")
+        completions = script.complete()
+        delta = completions[0].get_completion_prefix_length() if completions else 0
+
+        reply = {"matches": [c.name for c in completions], "delta": delta}
+
+        # send the reply to the IPython kernel
+        reply = json.dumps(reply)
+        transport.write(reply.encode())
+
+        # close the connection
+        transport.close()
+
     async def _exec_code_async(self, statement: str, transport: asyncio.Transport) -> None:
         """Execute the statement in the Omniverse scope and send the result to the IPython kernel
         
@@ -291,7 +324,7 @@ class Extension(omni.ext.IExt):
         :param transport: transport to send the result to the IPython kernel
         :type transport: asyncio.Transport
 
-        :return: reply dictionary as ipython notebook expects it
+        :return: reply dictionary
         :rtype: dict
         """
         _stdout = StringIO()
