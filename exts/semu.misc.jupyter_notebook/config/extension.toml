@@ -31,13 +31,12 @@ python = ["*"]
 name = "semu.misc.jupyter_notebook"
 
 [python.pipapi]
-requirements = ["nest_asyncio", "jupyterlab", "notebook", "jedi"]
+requirements = ["jupyterlab", "notebook", "jedi"]
 use_online_index = true
 
 [settings]
 # extension settings
 exts."semu.misc.jupyter_notebook".socket_port = 8224
-exts."semu.misc.jupyter_notebook".run_in_external_process = true
 exts."semu.misc.jupyter_notebook".classic_notebook_interface = false
 exts."semu.misc.jupyter_notebook".kill_processes_with_port_in_use = true
 # jupyter notebook settings

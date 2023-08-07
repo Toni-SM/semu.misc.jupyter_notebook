@@ -5,11 +5,9 @@ import sys
 import jedi
 import json
 import glob
-import types
 import socket
 import asyncio
 import traceback
-import threading
 import subprocess
 import contextlib
 from io import StringIO
@@ -21,9 +19,6 @@ except ImportError:
 
 import carb
 import omni.ext
-
-import nest_asyncio
-from jupyter_client.kernelspec import KernelSpecManager as _KernelSpecManager
 
 
 def _get_coroutine_flag() -> int:
@@ -68,21 +63,6 @@ def _get_event_loop() -> asyncio.AbstractEventLoop:
     except RuntimeError:
         return asyncio.get_event_loop_policy().get_event_loop()
 
-def _init_signal(self) -> None:
-    """Dummy method to initialize the notebook app outside of the main thread
-    """
-    pass
-
-
-class KernelSpecManager(_KernelSpecManager):
-    def __init__(self, *args, **kwargs) -> None:
-        """Custom kernel spec manager to allow for loading of custom kernels
-        """
-        super().__init__(*args, **kwargs)
-        kernel_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data", "kernels"))
-        if kernel_dir not in self.kernel_dirs:
-            self.kernel_dirs.append(kernel_dir)
-
 
 class Extension(omni.ext.IExt):
     
@@ -94,7 +74,6 @@ class Extension(omni.ext.IExt):
         self._globals = {**globals()}
         self._locals = self._globals
 
-        self._app = None
         self._server = None
         self._process = None
 
@@ -108,7 +87,6 @@ class Extension(omni.ext.IExt):
         self._notebook_port = self._settings.get("/exts/semu.misc.jupyter_notebook/notebook_port")
         self._notebook_dir = self._settings.get("/exts/semu.misc.jupyter_notebook/notebook_dir")
         self._command_line_options = self._settings.get("/exts/semu.misc.jupyter_notebook/command_line_options")
-        self._run_in_external_process = self._settings.get("/exts/semu.misc.jupyter_notebook/run_in_external_process")
         self._classic_notebook_interface = self._settings.get("/exts/semu.misc.jupyter_notebook/classic_notebook_interface")
 
         self._socket_port = self._settings.get("/exts/semu.misc.jupyter_notebook/socket_port")
@@ -160,11 +138,7 @@ class Extension(omni.ext.IExt):
         self._create_socket()
         
         # run jupyter notebook in a separate process
-        if self._run_in_external_process:
-            self._launch_jupyter_process()
-        # run jupyter notebook in the separate thread
-        else:
-            threading.Thread(target=self._launch_jupyter_thread).start()
+        self._launch_jupyter_process()
 
         # jedi (autocompletion)
         # application root path
@@ -214,33 +188,24 @@ class Extension(omni.ext.IExt):
             self._server.close()
             _get_event_loop().run_until_complete(self._server.wait_closed())
         # close the jupyter notebook (external process)
-        if self._run_in_external_process:
-            if self._process is not None:
-                process_pid = self._process.pid
-                try:
-                    self._process.terminate()  # .kill()
-                except OSError as e:
-                    if sys.platform == 'win32':
-                        if e.winerror != 5:
-                            raise
-                    else:
-                        from errno import ESRCH
-                        if not isinstance(e, ProcessLookupError) or e.errno != ESRCH:
-                            raise
-                # make sure the process is not running anymore in Windows
+        if self._process is not None:
+            process_pid = self._process.pid
+            try:
+                self._process.terminate()  # .kill()
+            except OSError as e:
                 if sys.platform == 'win32':
-                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(process_pid)])
-                # wait for the process to terminate
-                self._process.wait()
-                self._process = None
-        # close the jupyter notebook (internal thread)
-        else:
-            if self._app is not None:
-                try:
-                    _get_event_loop().run_until_complete(self._app._stop())
-                except Exception as e:
-                    carb.log_error(str(e))
-                self._app = None
+                    if e.winerror != 5:
+                        raise
+                else:
+                    from errno import ESRCH
+                    if not isinstance(e, ProcessLookupError) or e.errno != ESRCH:
+                        raise
+            # make sure the process is not running anymore in Windows
+            if sys.platform == 'win32':
+                subprocess.call(['taskkill', '/F', '/T', '/PID', str(process_pid)])
+            # wait for the process to terminate
+            self._process.wait()
+            self._process = None
 
     # extension ui methods
 
@@ -252,15 +217,11 @@ class Extension(omni.ext.IExt):
         """Show a Jupyter Notebook URL in the notification area
         """
         display_url = ""
-        if self._run_in_external_process:
-            if self._process is not None:
-                notebook_txt = os.path.join(self._extension_path, "data", "launchers", "notebook.txt")
-                if os.path.exists(notebook_txt):
-                    with open(notebook_txt, "r") as f:
-                        display_url = f.read()
-        else:
-            if self._app is not None:
-                display_url = self._app.display_url
+        if self._process is not None:
+            notebook_txt = os.path.join(self._extension_path, "data", "launchers", "notebook.txt")
+            if os.path.exists(notebook_txt):
+                with open(notebook_txt, "r") as f:
+                    display_url = f.read()
 
         if display_url:
             notification = "Jupyter Notebook is running at:\n\n  - " + display_url.replace(" or ", "  - ")
@@ -475,66 +436,3 @@ class Extension(omni.ext.IExt):
         except Exception as e:
             carb.log_error("Error starting Jupyter server: {}".format(e))
             self._process = None
-
-    def _launch_jupyter_thread(self) -> None:
-        """Launch the Jupyter notebook in a separate thread
-        """
-        asyncio.run(self._async_jupyter())
-
-    async def _async_jupyter(self) -> None:
-        """Launch the Jupyter notebook inside the Omniverse application
-        """
-        # get settings
-        argv = []
-        if self._command_line_options:
-            argv = self._command_line_options.split(" ")
-        if self._notebook_dir:
-            self._notebook_dir = "--notebook-dir={}".format(self._notebook_dir)
-        else:
-            self._notebook_dir = "--notebook-dir={}".format(os.path.join(self._extension_path, "data", "notebooks"))
-        argv.append(self._notebook_dir)
-        if self._classic_notebook_interface:
-            argv.append("--NotebookApp.token={}".format(self._token))
-        else:
-            argv.append("--ServerApp.token={}".format(self._token))
-
-        carb.log_info("Starting Jupyter server in separate thread")
-        carb.log_info(" Argv: {}".format(argv))
-
-        # jupyter notebook
-        if self._classic_notebook_interface:
-            from notebook.notebookapp import NotebookApp
-
-            self._app = NotebookApp(ip=self._notebook_ip, 
-                                    port=self._notebook_port,
-                                    kernel_spec_manager_class=KernelSpecManager)
-            self._app.init_signal = types.MethodType(_init_signal, self._app)  # hack to initialize in a separate thread
-            self._app.initialize(argv=argv)
-
-        # jupyter lab
-        else:
-            from jupyterlab.labapp import LabApp
-            from jupyter_server.serverapp import ServerApp
-
-            jpserver_extensions = {LabApp.get_extension_package(): True}
-            find_extensions = LabApp.load_other_extensions
-            if "jpserver_extensions" in LabApp.serverapp_config:
-                jpserver_extensions.update(LabApp.serverapp_config["jpserver_extensions"])
-                LabApp.serverapp_config["jpserver_extensions"] = jpserver_extensions
-                find_extensions = False
-            self._app = ServerApp.instance(ip=self._notebook_ip, 
-                                           port=self._notebook_port,
-                                           kernel_spec_manager_class=KernelSpecManager,
-                                           jpserver_extensions=jpserver_extensions)
-            self._app.aliases.update(LabApp.aliases)
-            self._app.init_signal = types.MethodType(_init_signal, self._app)  # hack to initialize in a separate thread
-            self._app.initialize(argv=argv,
-                                 starter_extension=LabApp.name,
-                                 find_extensions=find_extensions)
-        
-        # start the notebook app
-        nest_asyncio.apply()
-        try:
-            self._app.start()
-        except:
-            self._app = None
