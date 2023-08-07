@@ -111,9 +111,12 @@ class Extension(omni.ext.IExt):
                 for line in p.stdout:
                     if f":{self._socket_port}".encode() in line or f":{self._notebook_port}".encode() in line:
                         if "listening".encode() in line.lower():
+                            carb.log_info(f"Open port: {line.strip().decode()}")
                             pids.append(line.strip().split(b" ")[-1].decode())
                 p.wait()
                 for pid in pids:
+                    if not pid.isnumeric():
+                        continue
                     carb.log_warn(f"Forced process shutdown with PID {pid}")
                     cmd = ["taskkill", "/PID", pid, "/F"]
                     subprocess.Popen(cmd).wait()
@@ -125,11 +128,14 @@ class Extension(omni.ext.IExt):
                     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
                     for line in p.stdout:
                         if f":{self._socket_port}".encode() in line or f":{self._notebook_port}".encode() in line:
-                            pids.append(line.strip().split(b" ")[-1].decode().split("/")[0])
+                            carb.log_info(f"Open port: {line.strip().decode()}")
+                            pids.append([chunk for chunk in line.strip().split(b" ") if b'/' in chunk][-1].decode().split("/")[0])
                     p.wait()
                 except FileNotFoundError as e:
                     carb.log_warn(f"Command (netstat) not available. Install it using `apt install net-tools`")
                 for pid in pids:
+                    if not pid.isnumeric():
+                        continue
                     carb.log_warn(f"Forced process shutdown with PID {pid}")
                     cmd = ["kill", "-9", pid]
                     subprocess.Popen(cmd).wait()
