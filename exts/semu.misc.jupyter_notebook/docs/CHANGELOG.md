@@ -2,13 +2,16 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2023-08-07
 ### Added
-- Code completion (<kbd>Tab</kbd>)
+- Code autocompletion (<kbd>Tab</kbd>)
 - Code introspection (<kbd>Ctrl</kbd> + <kbd>i</kbd>)
 
 ### Changed
 - Implement embedded kernel on `ipykernel.kernelbase.Kernel`
+
+### Removed
+- Threaded kernel implementation
 
 ## [0.0.3-beta] - 2022-12-31
 ### Added
