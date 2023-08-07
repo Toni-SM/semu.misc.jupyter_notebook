@@ -53,7 +53,7 @@ class EmbeddedKernel(Kernel):
         "file_extension": ".py",
     }
     banner = "Embedded Omniverse (Python 3)"
-    help_links = [{'text': "semu.misc.jupyter_notebook", 'url': "https://github.com/Toni-SM/semu.misc.jupyter_notebook"}]
+    help_links = [{"text": "semu.misc.jupyter_notebook", "url": "https://github.com/Toni-SM/semu.misc.jupyter_notebook"}]
 
     async def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
         """Execute user code
@@ -93,7 +93,7 @@ class EmbeddedKernel(Kernel):
         if reply_content["status"] == "error":
             self.send_response(self.iopub_socket, "error", reply_content)
 
-        # update request
+        # update reply
         execute_reply["status"] = reply_content["status"]
         execute_reply["execution_count"] = self.execution_count,  # the base class increments the execution count
 
@@ -106,16 +106,16 @@ class EmbeddedKernel(Kernel):
         """Code completation
         """
         # https://jupyter-client.readthedocs.io/en/latest/messaging.html#msging-completion
-        complete_request = {"status": "ok",
-                            "matches": [], 
-                            "cursor_start": 0,
-                            "cursor_end": cursor_pos, 
-                            "metadata": {}}
+        complete_reply = {"status": "ok",
+                          "matches": [], 
+                          "cursor_start": 0,
+                          "cursor_end": cursor_pos, 
+                          "metadata": {}}
         
         # parse code
         code = code[:cursor_pos]
         if not code or code[-1] in [' ', '=', ':', '(', ')']:
-            return complete_request
+            return complete_reply
 
         # generate completions
         try:
@@ -129,11 +129,11 @@ class EmbeddedKernel(Kernel):
             print("\x1b[0;31m==================================================\x1b[0m")
             reply_content = {"matches": [], "delta": cursor_pos}
 
-        # update request: {"matches": list(str), "delta": int}
-        complete_request["matches"] = reply_content["matches"]
-        complete_request["cursor_start"] = cursor_pos - reply_content["delta"]
+        # update replay: {"matches": list(str), "delta": int}
+        complete_reply["matches"] = reply_content["matches"]
+        complete_reply["cursor_start"] = cursor_pos - reply_content["delta"]
 
-        return complete_request
+        return complete_reply
 
 
 
