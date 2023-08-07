@@ -36,6 +36,12 @@ async def _send_and_recv(message):
     await writer.wait_closed()
     return data.decode()
 
+def _get_line_column(code, cursor_pos):
+    line = code.count('\n', 0, cursor_pos) + 1
+    last_newline_pos = code.rfind('\n', 0, cursor_pos)
+    column = cursor_pos - last_newline_pos - 1
+    return line, column
+
 
 class EmbeddedKernel(Kernel):
     """Omniverse Kit Python wrapper kernels
@@ -134,6 +140,36 @@ class EmbeddedKernel(Kernel):
         complete_reply["cursor_start"] = cursor_pos - reply_content["delta"]
 
         return complete_reply
+
+    async def do_inspect(self, code, cursor_pos, detail_level=0, omit_sections=()):
+        """Object introspection
+        """
+        # https://jupyter-client.readthedocs.io/en/latest/messaging.html#msging-inspection
+        inspect_reply = {"status": "ok",
+                         "found": False,
+                         "data": {},
+                         "metadata": {}}
+    
+        line, column = _get_line_column(code, cursor_pos)
+
+        # generate introspection
+        try:
+            data = await _send_and_recv(f"%!i{line}:{column}%" + code)
+            reply_content = json.loads(data)
+        except Exception as e:
+            # show network error in client
+            print("\x1b[0;31m==================================================\x1b[0m")
+            print("\x1b[0;31mKernel error at port {}\x1b[0m".format(SOCKET_PORT))
+            print(e)
+            print("\x1b[0;31m==================================================\x1b[0m")
+            reply_content = {"found": False, "data": cursor_pos}
+
+        # update replay: {"found": bool, "data": str}
+        if reply_content["found"]:
+            inspect_reply["found"] = reply_content["found"]
+            inspect_reply["data"] = {"text/plain": reply_content["data"]}
+
+        return inspect_reply
 
 
 
