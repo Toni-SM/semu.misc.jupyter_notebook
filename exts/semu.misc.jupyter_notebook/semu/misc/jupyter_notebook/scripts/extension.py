@@ -4,6 +4,7 @@ import os
 import sys
 import jedi
 import json
+import glob
 import types
 import socket
 import asyncio
@@ -165,6 +166,40 @@ class Extension(omni.ext.IExt):
         else:
             threading.Thread(target=self._launch_jupyter_thread).start()
 
+        # jedi (autocompletion)
+        # application root path
+        app_folder = carb.settings.get_settings().get_as_string("/app/folder")
+        if not app_folder:
+            app_folder = carb.tokens.get_tokens_interface().resolve("${app}")
+        path = os.path.normpath(os.path.join(app_folder, os.pardir))
+        # get extension paths
+        folders = [
+            "exts", 
+            "extscache",
+            os.path.join("kit", "extensions"),
+            os.path.join("kit", "exts"),
+            os.path.join("kit", "extsPhysics"),
+            os.path.join("kit", "extscore"),
+        ]
+        added_sys_path = []
+        for folder in folders:
+            sys_paths = glob.glob(os.path.join(path, folder, "*"))
+            for sys_path in sys_paths:
+                if os.path.isdir(sys_path):
+                    added_sys_path.append(sys_path)
+        # python environment
+        python_exe = "python.exe" if sys.platform == "win32" else "bin/python3"
+        environment_path = os.path.join(path, "kit", "python", python_exe)
+        # jedi project
+        carb.log_info("Autocompletion: jedi.Project")
+        carb.log_info(f"  |-- path: {path}")
+        carb.log_info(f"  |-- added_sys_path: {len(added_sys_path)} items")
+        carb.log_info(f"  |-- environment_path: {environment_path}")
+        self._jedi_project = jedi.Project(path=path,
+                                          environment_path=environment_path,
+                                          added_sys_path=added_sys_path,
+                                          load_unsafe_extensions=True)
+
     def on_shutdown(self):
         # clean extension paths from sys.path
         if self._extension_path is not None:
@@ -290,7 +325,6 @@ class Extension(omni.ext.IExt):
         with open(socket_txt, "w") as f:
             f.write(str(self._socket_port))
 
-
     async def _complete_code_async(self, statement: str, transport: asyncio.Transport) -> None:
         """Complete objects under the cursor and send the result to the IPython kernel
         
@@ -303,7 +337,7 @@ class Extension(omni.ext.IExt):
         :rtype: dict
         """
         # generate completions
-        script = jedi.Script(statement, path="")
+        script = jedi.Script(statement, project=self._jedi_project)
         completions = script.complete()
         delta = completions[0].get_completion_prefix_length() if completions else 0
 
@@ -397,7 +431,7 @@ class Extension(omni.ext.IExt):
                self._command_line_options]
                 
         carb.log_info("Starting Jupyter server in separate process")
-        carb.log_info("  Command: " + " ".join(cmd))
+        carb.log_info("  |-- command: " + " ".join(cmd))
         try:
             self._process = subprocess.Popen(cmd, cwd=os.path.join(self._extension_path, "data", "launchers"))
         except Exception as e:
