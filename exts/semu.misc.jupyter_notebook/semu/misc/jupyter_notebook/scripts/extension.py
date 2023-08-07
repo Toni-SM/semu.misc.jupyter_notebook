@@ -198,7 +198,7 @@ class Extension(omni.ext.IExt):
         self._jedi_project = jedi.Project(path=path,
                                           environment_path=environment_path,
                                           added_sys_path=added_sys_path,
-                                          load_unsafe_extensions=True)
+                                          load_unsafe_extensions=False)
 
     def on_shutdown(self):
         # clean extension paths from sys.path
@@ -306,6 +306,13 @@ class Extension(omni.ext.IExt):
                 if code[:3] == "%!c":
                     code = code[3:]
                     asyncio.run_coroutine_threadsafe(self._parent._complete_code_async(code, self.transport), _get_event_loop())
+                # introspection
+                elif code[:3] == "%!i":
+                    code = code[3:]
+                    pos = code.find('%')
+                    line, column = [int(i) for i in code[:pos].split(':')]
+                    code = code[pos + 1:]
+                    asyncio.run_coroutine_threadsafe(self._parent._introspect_code_async(code, line, column, self.transport), _get_event_loop())
                 # execution
                 else:
                     asyncio.run_coroutine_threadsafe(self._parent._exec_code_async(code, self.transport), _get_event_loop())
@@ -342,6 +349,37 @@ class Extension(omni.ext.IExt):
         delta = completions[0].get_completion_prefix_length() if completions else 0
 
         reply = {"matches": [c.name for c in completions], "delta": delta}
+
+        # send the reply to the IPython kernel
+        reply = json.dumps(reply)
+        transport.write(reply.encode())
+
+        # close the connection
+        transport.close()
+
+    async def _introspect_code_async(self, statement: str, line: int, column: int, transport: asyncio.Transport) -> None:
+        """Introspect code under the cursor and send the result to the IPython kernel
+        
+        :param statement: statement to introspect
+        :type statement: str
+        :param line: the line where the definition occurs
+        :type line: int
+        :param column: the column where the definition occurs
+        :type column: int
+        :param transport: transport to send the result to the IPython kernel
+        :type transport: asyncio.Transport
+
+        :return: reply dictionary
+        :rtype: dict
+        """
+        # generate introspection
+        script = jedi.Script(statement, project=self._jedi_project)
+        definitions = script.infer(line=line, column=column)
+        
+        reply = {"found": False, "data": "TODO"}
+        if len(definitions):
+            reply["found"] = True
+            reply["data"] = definitions[0].docstring()
 
         # send the reply to the IPython kernel
         reply = json.dumps(reply)
