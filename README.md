@@ -47,16 +47,42 @@
 <a name="usage"></a>
 ### Extension usage
 
-Enabling the extension launches the Jupyter Notebook server ([JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) or [Jupyter Notebook](https://jupyter-notebook.readthedocs.io/en/latest/)) in the background. The notebook can then be opened in the browser via its URL (`http://WORKSTATION_IP:PORT/`), which is also indicated inside the Omniverse application in the *Windows > Embedded Jupyter Notebook* menu
+#### Omniverse app
+
+Enabling the extension launches the Jupyter Notebook server ([JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) or [Jupyter Notebook](https://jupyter-notebook.readthedocs.io/en/latest/)) in the background. The notebook can then be opened in the browser via its URL (`http://WORKSTATION_IP:PORT/`), which is also indicated inside the Omniverse application in the *Windows > Embedded Jupyter Notebook* menu.
+
+> **Note:** The Jupyter Notebook URL port may change if the configured port is already in use.
 
 <br>
 <p align="center">
   <img src="exts/semu.misc.jupyter_notebook/data/preview1.png" width="75%">
 </p>
 
-Disabling the extension shutdowns the Jupyter Notebook server and the openened kernels
+Disabling the extension shutdowns the Jupyter Notebook server and the openened kernels.
 
-> **Note:** The Jupyter Notebook URL port may change if the configured port is already in use
+#### Jupyter Notebook
+
+To execute Python code in the current NVIDIA Omniverse application scope use the following kernel: 
+
+<br>
+<table align="center" class="table table-striped table-bordered">
+  <thead>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Embedded Omniverse (Python 3)</td>
+      <td><p align="center" style="margin: 0"><img src="exts/semu.misc.jupyter_notebook/data/kernels/embedded_omniverse_python3_socket/logo-64x64.png" width="50px"></p></td>
+    </tr>
+  </tbody>
+</table>
+
+##### Code autocompletion
+
+Use the <kbd>Tab</kbd> key for code autocompletion.
+
+##### Code introspection 
+
+Use the <kbd>Ctrl</kbd> + <kbd>i</kbd> keys for code introspection (display *docstring* if available).
 
 <hr>
 
@@ -82,11 +108,6 @@ The extension can be configured by editing the [config.toml](exts/semu.misc.jupy
       <td>socket_port</td>
       <td>8224</td>
       <td>The port on which the Jupyter Notebook server will be listening for connections</td>
-    </tr>
-    <tr>
-      <td>run_in_external_process</td>
-      <td>true</td>
-      <td>Whether the Jupyter Notebook server will be run as an external process. If set to *false*, the server will be run in thread </td>
     </tr>
     <tr>
       <td>classic_notebook_interface</td>
@@ -116,7 +137,7 @@ The extension can be configured by editing the [config.toml](exts/semu.misc.jupy
   <tbody>
     <tr>
       <td>notebook_ip</td>
-      <td>0.0.0.0</td>
+      <td>"0.0.0.0"</td>
       <td>The IP address on which the Jupyter Notebook server will be launched</td>
     </tr>
     <tr>
@@ -126,17 +147,17 @@ The extension can be configured by editing the [config.toml](exts/semu.misc.jupy
     </tr>
     <tr>
       <td>token</td>
-      <td></td>
+      <td>""</td>
       <td>The Jupyter Notebook server token. If empty, the default configuration, the server will be launched without authentication</td>
     </tr>
     <tr>
       <td>notebook_dir</td>
-      <td></td>
+      <td>""</td>
       <td>The Jupyter Notebook server directory</td>
     </tr>
     <tr>
       <td>command_line_options</td>
-      <td>--allow-root --no-browser</td>
+      <td>"--allow-root --no-browser"</td>
       <td>The Jupyter Notebook server command line options excluding the previously mentioned parameters</td>
     </tr>
   </tbody>
@@ -147,13 +168,7 @@ The extension can be configured by editing the [config.toml](exts/semu.misc.jupy
 <a name="implementation"></a>
 ### Implementation details
 
-Both the Jupyter Notebook server and the IPython kernels are designed to be launched as independent processes (or subprocesses). Due to this specification, there are implemented 2 deployments, in this extension, to support the Omniverse integration (configurable with the parameter `run_in_external_process`). Each deployment has its own kernel and notebook server implementation
-
-<br>
-
-1. The Jupyter Notebook server and the IPython kernels are launched in separate (sub)processes (**default and recommended**)
-
-2. The Jupyter Notebook server and the IPython kernels are launched threaded in the same process as the Omniverse application
+Both the Jupyter Notebook server and the IPython kernels are designed to be launched as independent processes (or subprocesses). Due to this specification, the Jupyter Notebook server and the IPython kernels are launched in separate (sub)processes.
 
 <br>
 <table class="table table-striped table-bordered">
@@ -161,39 +176,32 @@ Both the Jupyter Notebook server and the IPython kernels are designed to be laun
     <tr>
       <th></th>
       <th>Jupyter Notebook as (sub)process</th>
-      <th>Threaded Jupyter Notebook</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td>Kernel (display name)</td>
       <td>Embedded Omniverse (Python 3)</td>
-      <td>Embedded Omniverse (Python 3) [threaded]</td>
     </tr>
     <tr>
       <td>Kernel (logo)</td>
       <td><p align="center"><img src="exts/semu.misc.jupyter_notebook/data/kernels/embedded_omniverse_python3_socket/logo-64x64.png" width="50px"></p></td>
-      <td><p align="center"><img src="exts/semu.misc.jupyter_notebook/data/kernels/embedded_omniverse_python3_threaded/logo-64x64.png" width="50px"></p></td>
     </tr>
     <tr>
       <td>Kernel (raw name)</td>
       <td>embedded_omniverse_python3_socket</td>
-      <td>embedded_omniverse_python3_threaded</td>
     </tr>
     <tr>
       <td>Instanceable kernels</td>
       <td>Unlimited</td>
-      <td>1 (at the moment)</td>
     </tr>
     <tr>
       <td>Python backend</td>
       <td>Omniverse Kit embedded Python</td>
-      <td>IPython</td>
     </tr>
     <tr>
       <td>Code execution</td>
       <td>Intercept Jupyter-IPython communication, forward and execute code in Omniverse Kit and send back the results to the published by the notebook</td>
-      <td>Pass the Omniverse Kit Python scope (<i>globals</i>) to a threaded IPython to execute the code</td>
     </tr>
     <tr>
       <td>Main limitations</td>
@@ -201,14 +209,7 @@ Both the Jupyter Notebook server and the IPython kernels are designed to be laun
         <ul>
           <li>IPython magic commands are not available</li>
           <li>Printing, inside callbacks, is not displayed in the notebook but in the Omniverse terminal</li>
-          <li>Autocompletion is not available</li>
           <li>Matplotlib plotting is not available in notebooks</li>
-        </ul>
-      </td>
-      <td>
-        <ul>
-          <li>Problem with the execution of asynchronous code due to the nested event loops (to be fixed in future releases)</li>
-          <li>Keep resources alive when the extension is reloaded/disabled (to be fixed in future releases)</li>
         </ul>
       </td>
     </tr>
