@@ -67,7 +67,7 @@
   ModuleNotFoundError: No module named 'jupyter_client'
   ```
 
-  **Solutions:**
+  **Solution:**
 
   Upgrade `pip` to the latest version.<br>
   Replace `<USER>` and `<OMNIVERSE_APP>` according to your system configuration.
@@ -83,6 +83,31 @@
   ```xml
   C:\Users\<USER>\AppData\Local\ov\data\Kit\<APP_NAME>\<APP_VERSION>\pip3-envs\
   ```
+
+* `pywinpty` compilation error on Windows
+
+  **Issues/Errors:**
+
+  ```xml
+  Collecting pywinpty; os_name == "nt"
+    Downloading pywinpty.tar.gz
+    Installing build dependencies ... done
+    Getting requirements to build wheel ... done
+      Preparing wheel metadata ... error
+      ERROR: Command errored out with exit status 1:
+      Complete output (6 lines):
+  
+      Cargo, the Rust package manager, is not installed or is not on PATH.
+      This package requires Rust and Cargo to compile extensions. Install it through
+      the system's package manager or via https://rustup.rs/
+  
+      Checking for Rust toolchain....
+      ----------------------------------------
+  ```
+
+  **Solution:**
+
+  *To compile pywinpty sources, you must have Rust installed... (reference: [PyPi `pywinpty`](https://pypi.org/project/pywinpty))*. Install the Rust compiler via https://rustup.rs/
 
 <hr>
 
