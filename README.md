@@ -1,6 +1,6 @@
 ## Embedded Jupyter Notebook for NVIDIA Omniverse
 
-> This extension can be described as the [Jupyter](https://jupyter.org/) notebook version of Omniverse's [Script Editor](https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_script-editor.html). It allows to open a Jupyter Notebook embedded in the current NVIDIA Omniverse application scope
+> This extension can be described as the [Jupyter](https://jupyter.org/) notebook version of Omniverse's [Script Editor](https://docs.omniverse.nvidia.com/extensions/latest/ext_script-editor.html). It allows to open a Jupyter Notebook embedded in the current NVIDIA Omniverse application scope.
 
 <br>
 
@@ -13,7 +13,10 @@
 **Table of Contents:**
 
 - [Extension setup](#setup)
+  - [Troubleshooting](#setup-troubleshooting)
 - [Extension usage](#usage)
+  - [Code autocompletion](#usage-autocompletion)
+  - [Code introspection](#usage-introspection)
 - [Configuring the extension](#config)
 - [Implementation details](#implementation)
 
@@ -26,11 +29,9 @@
 <a name="setup"></a>
 ### Extension setup
 
-1. Add the extension using the [Extension Manager](https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_extension-manager.html) or by following the steps in [Extension Search Paths](https://docs.omniverse.nvidia.com/py/kit/docs/guide/extensions.html#extension-search-paths)
+1. Add the extension using the [Extension Manager](https://docs.omniverse.nvidia.com/extensions/latest/ext_extension-manager.html) or by following the steps in [Extension Search Paths](https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/extensions_advanced.html#git-url-paths)
 
     * Git url (git+https) as extension search path
-
-        :warning: *There seems to be a bug when installing extensions using the git url (git+https) as extension search path in some Omniverse applications. In this case, it is recommended to install the extension by importing the .zip file*
     
         ```
         git+https://github.com/Toni-SM/semu.misc.jupyter_notebook.git?branch=main&dir=exts
@@ -40,7 +41,48 @@
 
         [semu.misc.jupyter_notebook.zip](https://github.com/Toni-SM/semu.misc.jupyter_notebook/releases)
 
-2. Enable the extension using the [Extension Manager](https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_extension-manager.html) or by following the steps in [Extension Enabling/Disabling](https://docs.omniverse.nvidia.com/py/kit/docs/guide/extensions.html#extension-enabling-disabling)
+2. Enable the extension using the [Extension Manager](https://docs.omniverse.nvidia.com/extensions/latest/ext_extension-manager.html) or by following the steps in [Extension Enabling/Disabling](https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/extensions_advanced.html#extension-enabling-disabling)
+
+<a name="setup-troubleshooting"></a>
+#### Troubleshooting
+
+* Dependencies not installed on Windows
+
+  **Issues/Errors:**
+
+  ```ini
+  [Warning] [omni.kit.pipapi.pipapi] 'jupyterlab' failed to install.
+  [Warning] [omni.kit.pipapi.pipapi] 'notebook' failed to install.
+  ```
+
+  ```
+  ERROR: Could not find a version that satisfies the requirement pywin32>=300; sys_platform == "win32" and platform_python_implementation != "PyPy"
+  ERROR: No matching distribution found for pywin32>=300; sys_platform == "win32" and platform_python_implementation != "PyPy"
+  ```
+
+  ```
+  Traceback (most recent call last):
+    File "semu.misc.jupyter_notebook\exts\semu.misc.jupyter_notebook\data\launchers\jupyter_launcher.py", line 24, in <module>
+      from jupyter_client.kernelspec import KernelSpecManager as _KernelSpecManager
+  ModuleNotFoundError: No module named 'jupyter_client'
+  ```
+
+  **Solutions:**
+
+  Upgrade `pip` to the latest version.<br>
+  Replace `<USER>` and `<OMNIVERSE_APP>` according to your system configuration.
+
+  ```xml
+  c:\users\<USER>\appdata\local\ov\pkg\<OMNIVERSE_APP>\kit\python\python.exe -m pip install --upgrade pip
+  ```
+  
+  Remove the previous `pip` version in the following folder:
+
+  > Note: make sure the latest `pip` version is available in the `c:\users\<USER>\appdata\local\ov\pkg\<OMNIVERSE_APP>\kit\python\Lib\site-packages` folder
+
+  ```xml
+  C:\Users\<USER>\AppData\Local\ov\data\Kit\<APP_NAME>\<APP_VERSION>\pip3-envs\
+  ```
 
 <hr>
 
@@ -76,10 +118,12 @@ To execute Python code in the current NVIDIA Omniverse application scope use the
   </tbody>
 </table>
 
+<a name="usage-autocompletion"></a>
 ##### Code autocompletion
 
 Use the <kbd>Tab</kbd> key for code autocompletion.
 
+<a name="usage-introspection"></a>
 ##### Code introspection 
 
 Use the <kbd>Ctrl</kbd> + <kbd>i</kbd> keys for code introspection (display *docstring* if available).
