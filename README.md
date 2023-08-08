@@ -46,7 +46,7 @@
 <a name="setup-troubleshooting"></a>
 #### Troubleshooting
 
-* Dependencies not installed on Windows
+* Failed installation
 
   **Issues/Errors:**
 
@@ -55,59 +55,23 @@
   [Warning] [omni.kit.pipapi.pipapi] 'notebook' failed to install.
   ```
 
-  ```
-  ERROR: Could not find a version that satisfies the requirement pywin32>=300; sys_platform == "win32" and platform_python_implementation != "PyPy"
-  ERROR: No matching distribution found for pywin32>=300; sys_platform == "win32" and platform_python_implementation != "PyPy"
-  ```
-
-  ```
-  Traceback (most recent call last):
-    File "semu.misc.jupyter_notebook\exts\semu.misc.jupyter_notebook\data\launchers\jupyter_launcher.py", line 24, in <module>
-      from jupyter_client.kernelspec import KernelSpecManager as _KernelSpecManager
-  ModuleNotFoundError: No module named 'jupyter_client'
-  ```
-
   **Solution:**
 
-  Upgrade `pip` to the latest version.<br>
-  Replace `<USER>` and `<OMNIVERSE_APP>` according to your system configuration.
+  Upgrade `pip` to the latest version and install required libraries manually. Replace `<USER>` and `<OMNIVERSE_APP>` according to your system configuration. Example:
+  
+  - `<USER>`: toni
+  - `<OMNIVERSE_APP>`: create-2023.1.1
+  - `<APP_NAME>`: USD.Composer
+  - `<APP_VERSION>`: 2023.1
+
+  <br>
+
+  **Linux**
 
   ```xml
-  c:\users\<USER>\appdata\local\ov\pkg\<OMNIVERSE_APP>\kit\python\python.exe -m pip install --upgrade pip
+  /home/<USER>/.local/share/ov/pkg/<OMNIVERSE_APP>/kit/python/bin/python3 -m pip install --upgrade pip
+  /home/<USER>/.local/share/ov/pkg/<OMNIVERSE_APP>/kit/python/bin/python3 -m pip --isolated install --upgrade --target=/home/<USER>/.local/share/ov/data/Kit/<APP_NAME>/<APP_VERSION>/pip3-envs/default jupyterlab notebook jedi
   ```
-  
-  Remove the previous `pip` version in the following folder:
-
-  > Note: make sure the latest `pip` version is available in the `c:\users\<USER>\appdata\local\ov\pkg\<OMNIVERSE_APP>\kit\python\Lib\site-packages` folder
-
-  ```xml
-  C:\Users\<USER>\AppData\Local\ov\data\Kit\<APP_NAME>\<APP_VERSION>\pip3-envs\
-  ```
-
-* `pywinpty` compilation error on Windows
-
-  **Issues/Errors:**
-
-  ```xml
-  Collecting pywinpty; os_name == "nt"
-    Downloading pywinpty.tar.gz
-    Installing build dependencies ... done
-    Getting requirements to build wheel ... done
-      Preparing wheel metadata ... error
-      ERROR: Command errored out with exit status 1:
-      Complete output (6 lines):
-  
-      Cargo, the Rust package manager, is not installed or is not on PATH.
-      This package requires Rust and Cargo to compile extensions. Install it through
-      the system's package manager or via https://rustup.rs/
-  
-      Checking for Rust toolchain....
-      ----------------------------------------
-  ```
-
-  **Solution:**
-
-  *To compile pywinpty sources, you must have Rust installed... (reference: [PyPi `pywinpty`](https://pypi.org/project/pywinpty))*. Install the Rust compiler via https://rustup.rs/
 
 <hr>
 
