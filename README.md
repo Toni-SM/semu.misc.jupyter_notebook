@@ -46,7 +46,7 @@
 <a name="setup-troubleshooting"></a>
 #### Troubleshooting
 
-* Failed installation
+* Failed installation (particularly in Kit 105 based applications - Python 3.10)
 
   **Issues/Errors:**
 
@@ -57,7 +57,7 @@
 
   **Solution:**
 
-  Upgrade `pip` to the latest version and install required libraries manually. Replace `<USER>` and `<OMNIVERSE_APP>` according to your system configuration. Example:
+  Upgrade `pip` to the latest version and install required libraries manually. Replace `<USER>`, `<OMNIVERSE_APP>`, `<APP_NAME>`, and `<APP_VERSION>` according to your system configuration. Example:
   
   - `<USER>`: toni
   - `<OMNIVERSE_APP>`: create-2023.1.1
@@ -66,11 +66,18 @@
 
   <br>
 
-  **Linux**
+  Linux
 
   ```xml
   /home/<USER>/.local/share/ov/pkg/<OMNIVERSE_APP>/kit/python/bin/python3 -m pip install --upgrade pip
   /home/<USER>/.local/share/ov/pkg/<OMNIVERSE_APP>/kit/python/bin/python3 -m pip --isolated install --upgrade --target=/home/<USER>/.local/share/ov/data/Kit/<APP_NAME>/<APP_VERSION>/pip3-envs/default jupyterlab notebook jedi
+  ```
+
+  Windows
+
+  ```xml
+  C:\Users\<USER>\AppData\Local\ov\pkg\<OMNIVERSE_APP>\kit\python\python.exe -m pip install --upgrade pip
+  C:\Users\<USER>\AppData\Local\ov\pkg\<OMNIVERSE_APP>\kit\python\python.exe -m pip --isolated install --upgrade --target=C:\Users\<USER>\AppData\Local\ov\data\Kit\<APP_NAME>\<APP_VERSION>\pip3-envs\default jupyterlab notebook jedi
   ```
 
 <hr>
