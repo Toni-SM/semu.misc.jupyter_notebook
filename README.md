@@ -1,5 +1,13 @@
 ## Embedded Jupyter Notebook for NVIDIA Omniverse
 
+<hr>
+
+<mark><strong>This extension is deprecated in favor of [omni.isaac.jupyter_notebook](https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_code_editors.html#jupyterlab-jupyter-notebook)</strong></mark>
+
+> See more details in [Isaac Sim docs](https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_code_editors.html).
+
+<hr>
+
 > This extension can be described as the [Jupyter](https://jupyter.org/) notebook version of Omniverse's [Script Editor](https://docs.omniverse.nvidia.com/extensions/latest/ext_script-editor.html). It allows to open a Jupyter Notebook embedded in the current NVIDIA Omniverse application scope.
 
 <br>
